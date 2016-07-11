@@ -9,12 +9,12 @@ public interface GroundedCongestionUsage {
     public static final int ACTION  = 2;
  
     public int getType();
-    
-    public int getNumTerms();   // if getType() == OR or getType() == AND
+
+    public int getNumTerms();   // if getConditionType() == OR or getConditionType() == AND
     
     public GroundedCongestionUsage getTerm(int termNumber); // 0 <= termNumber < getNumTerms()
-    
-    public String getActionName();  // if getType() == ACTION
+
+    public String getActionName();  // if getConditionType() == ACTION
     
     public int getNumActionParameters();
     

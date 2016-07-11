@@ -1,5 +1,7 @@
 package org.agreement_technologies.common.map_grounding;
 
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -64,7 +66,7 @@ public interface GroundedTask extends java.io.Serializable {
 	 * @param value Value
 	 * @return New grounded condition
 	 */
-	GroundedCond createGroundedCondition(int condition, GroundedVar var, String value);
+	GroundedCond createGroundedCondition(ConditionType condition, GroundedVar var, String value);
 
 	/**
 	 * Creates a new grounded effect

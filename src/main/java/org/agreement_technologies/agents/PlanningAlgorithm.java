@@ -1,9 +1,5 @@
 package org.agreement_technologies.agents;
 
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-
 import org.agreement_technologies.agents.GUIBootMultiAlg.AlgorithmType;
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_communication.PlanningAgentListener;
@@ -12,6 +8,8 @@ import org.agreement_technologies.common.map_grounding.Grounding;
 import org.agreement_technologies.common.map_heuristic.Heuristic;
 import org.agreement_technologies.common.map_heuristic.HeuristicFactory;
 import org.agreement_technologies.common.map_landmarks.Landmarks;
+import org.agreement_technologies.common.map_parser.AgentList;
+import org.agreement_technologies.common.map_parser.PDDLParser;
 import org.agreement_technologies.common.map_parser.Task;
 import org.agreement_technologies.common.map_planner.Plan;
 import org.agreement_technologies.common.map_planner.Planner;
@@ -20,16 +18,19 @@ import org.agreement_technologies.common.map_viewer.PlanViewer;
 import org.agreement_technologies.service.map_communication.AgentCommunicationImp;
 import org.agreement_technologies.service.map_grounding.GroundingImp;
 import org.agreement_technologies.service.map_heuristic.HeuristicFactoryImp;
+import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
 import org.agreement_technologies.service.map_parser.ParserImp;
 import org.agreement_technologies.service.map_planner.PlannerFactoryImp;
 import org.agreement_technologies.service.map_viewer.PlanViewerImp;
-import org.agreement_technologies.common.map_parser.AgentList;
-import org.agreement_technologies.common.map_parser.PDDLParser;
-import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
 import org.agreement_technologies.service.tools.Redirect;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
 
 public class PlanningAlgorithm {
-
     public static final int STATUS_STARTING = 0;
     public static final int STATUS_PARSING = 1;
     public static final int STATUS_GROUNDING = 2;
@@ -41,7 +42,7 @@ public class PlanningAlgorithm {
     protected static final String[] STATUS_DESC = {"starting", "parsing",
         "grounding", "planning", "landmarks", "undefined", "undefined",
         "undefined", "idle", "error", "arguing"};
-
+    private static final Logger logger = LoggerFactory.getLogger(PlanningAlgorithm.class);
     protected String name;					// Agent name
     protected String domainFile;				// Domain filename
     protected String problemFile;				// Problem filename
@@ -98,6 +99,16 @@ public class PlanningAlgorithm {
     }
 
     /**
+     * Gets the status description
+     *
+     * @param status Agent status
+     * @return Status description
+     */
+    public static String getStatusDesc(int status) {
+        return STATUS_DESC[status];
+    }
+
+    /**
      * Shows a trace message
      *
      * @param indentLevel	Indentation level
@@ -134,16 +145,6 @@ public class PlanningAlgorithm {
     }
 
     /**
-     * Gets the status description
-     *
-     * @param status Agent status
-     * @return Status description
-     */
-    public static String getStatusDesc(int status) {
-        return STATUS_DESC[status];
-    }
-
-    /**
      * Execution code for the planning agent
      */
     protected void execute(int timeout) {	// Time out in seconds
@@ -167,6 +168,8 @@ public class PlanningAlgorithm {
      * Task parsing from PDDL files
      */
     protected long parseTask() {
+        logger.debug("start parse task");
+
         changeStatus(STATUS_PARSING);
         long startTime = System.currentTimeMillis();
         planningTask = null;
@@ -205,6 +208,8 @@ public class PlanningAlgorithm {
      * Task grounding from parsed task
      */
     protected long groundTask() throws IOException {
+        logger.debug("groundTask");
+
         if (status == STATUS_ERROR) {
             return 0;
         }

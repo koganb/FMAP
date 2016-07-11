@@ -1,15 +1,18 @@
 package org.agreement_technologies.service.map_planner;
 
+import com.sun.deploy.util.StringUtils;
 import org.agreement_technologies.common.map_grounding.GroundedVar;
+
 import java.util.ArrayList;
 
 /**
  * Defines the POP variables; implements the Function interface.
  * @author Alex
  */
-//Variables para el POP; sustituye a la antigua clase PDDLLiteral
+//Variables for POP; replaces the old class Literal PDDL
 public class POPFunction {
-    //Parámetros: referencia a la variable original, nombre, parámetros, lista de tipos, valor verdadero inicial, valores falsos iniciales, valores alcanzables
+    //Parameters: reference to the original variable name, parameters, list types, initial true value,
+    // initial false values, achievable values
     private GroundedVar var;
     private String name;
     private ArrayList<String> params;
@@ -49,19 +52,10 @@ public class POPFunction {
     public ArrayList<String> getReachableValues()       {return this.reachableValues;}
 
     public String toKey() {
-        if(this.key == null) {
-        	key = name;
-			for (String param: params)
-				key += " " + param;
-        }
-
-        return this.key;
+        return toString();
     }
 
     public String toString() {
-    	String res = name;
-		for (String param: params)
-			res += " " + param;
-		return res;
+        return String.format("%s(%s)", name, StringUtils.join(params, ","));
     }
 }

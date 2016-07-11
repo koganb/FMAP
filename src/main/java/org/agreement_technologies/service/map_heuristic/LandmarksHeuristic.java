@@ -1,22 +1,12 @@
 package org.agreement_technologies.service.map_heuristic;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashMap;
-import java.util.PriorityQueue;
-
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_communication.Message;
 import org.agreement_technologies.common.map_communication.MessageFilter;
 import org.agreement_technologies.common.map_dtg.DTG;
 import org.agreement_technologies.common.map_dtg.DTGSet;
 import org.agreement_technologies.common.map_dtg.DTGTransition;
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
+import org.agreement_technologies.common.map_grounding.*;
 import org.agreement_technologies.common.map_heuristic.HPlan;
 import org.agreement_technologies.common.map_heuristic.Heuristic;
 import org.agreement_technologies.common.map_landmarks.LandmarkFluent;
@@ -28,6 +18,14 @@ import org.agreement_technologies.common.map_planner.PlannerFactory;
 import org.agreement_technologies.common.map_planner.Step;
 import org.agreement_technologies.service.map_dtg.DTGSetImp;
 import org.agreement_technologies.service.map_landmarks.LandmarksImp;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.PriorityQueue;
+
+import static org.agreement_technologies.common.map_planner.Condition.ConditionType.EQUAL;
 
 public class LandmarksHeuristic implements Heuristic {
 
@@ -70,7 +68,7 @@ public class LandmarksHeuristic implements Heuristic {
                 }
             }
             if (var != null) {
-                Goal ng = new Goal(gTask.createGroundedCondition(GroundedCond.EQUAL, var, g.value), 0);
+                Goal ng = new Goal(gTask.createGroundedCondition(EQUAL, var, g.value), 0);
                 goals.add(ng);
             }
         }
@@ -95,6 +93,38 @@ public class LandmarksHeuristic implements Heuristic {
         }
         initializeLandmarks();
         requestId = 0;
+    }
+
+    private static String selectInitialValueMono(String varName, String endValue, DTG dtg,
+                                                 HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues,
+                                                 int threadIndex) {
+        String bestValue = state.get(varName);
+        int bestCost = dtg.pathCost(bestValue, endValue, state, newValues, threadIndex);
+        ArrayList<String> valueList = newValues.get(varName);
+        if (valueList != null) {
+            for (int i = 0; i < valueList.size(); i++) {
+                String value = valueList.get(i);
+                int cost = dtg.pathCost(value, endValue, state, newValues, threadIndex);
+                if (cost != -1 && cost < bestCost) {
+                    bestCost = cost;
+                    bestValue = value;
+                }
+            }
+        }
+        return bestValue;
+    }
+
+    private static boolean holdsMono(String varName, String value, HashMap<String, String> state,
+                                     HashMap<String, ArrayList<String>> newValues) {
+        String v = state.get(varName);
+        if (v != null && v.equals(value)) {
+            return true;
+        }
+        ArrayList<String> values = newValues.get(varName);
+        if (values == null) {
+            return false;
+        }
+        return values.contains(value);
     }
 
     private void initializeLandmarks() {
@@ -276,7 +306,7 @@ public class LandmarksHeuristic implements Heuristic {
                         if (pos == -1) {
                             openLandmarkNodes.add(s);	// Non-visited node -> append to open nodes
                         } else if (pos < i) {
-                            i = pos;		// Perhaps we can progress now (a predecessor has been reached) 
+                            i = pos;        // Perhaps we can progress now (a predecessor has been reached)
                         }
                     }
                 }
@@ -285,6 +315,11 @@ public class LandmarksHeuristic implements Heuristic {
             }
         }
     }
+
+    /**
+     * ******************************************************************
+     */
+    /*                         M O N O - A G E N T                       */
 
     private void computeMultiState(HPlan currentPlan, HashMap<String, ArrayList<String>> state,
             int[] totalOrder, boolean checked[]) {
@@ -329,7 +364,7 @@ public class LandmarksHeuristic implements Heuristic {
                         if (pos == -1) {
                             openLandmarkNodes.add(s);	// Non-visited node -> append to open nodes
                         } else if (pos < i) {
-                            i = pos;		// Perhaps we can progress now (a predecessor has been reached) 
+                            i = pos;        // Perhaps we can progress now (a predecessor has been reached)
                         }
                     }
                 }
@@ -339,10 +374,6 @@ public class LandmarksHeuristic implements Heuristic {
         }
     }
 
-    /**
-     * ******************************************************************
-     */
-    /*                         M O N O - A G E N T                       */
     /**
      * ******************************************************************
      */
@@ -491,25 +522,6 @@ public class LandmarksHeuristic implements Heuristic {
         }
     }
 
-    private static String selectInitialValueMono(String varName, String endValue, DTG dtg,
-            HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues,
-            int threadIndex) {
-        String bestValue = state.get(varName);
-        int bestCost = dtg.pathCost(bestValue, endValue, state, newValues, threadIndex);
-        ArrayList<String> valueList = newValues.get(varName);
-        if (valueList != null) {
-            for (int i = 0; i < valueList.size(); i++) {
-                String value = valueList.get(i);
-                int cost = dtg.pathCost(value, endValue, state, newValues, threadIndex);
-                if (cost != -1 && cost < bestCost) {
-                    bestCost = cost;
-                    bestValue = value;
-                }
-            }
-        }
-        return bestValue;
-    }
-
     /**
      * Mono-agent heuristic goal evaluation
      *
@@ -610,19 +622,6 @@ public class LandmarksHeuristic implements Heuristic {
                 }
             }
         }
-    }
-
-    private static boolean holdsMono(String varName, String value, HashMap<String, String> state,
-            HashMap<String, ArrayList<String>> newValues) {
-        String v = state.get(varName);
-        if (v != null && v.equals(value)) {
-            return true;
-        }
-        ArrayList<String> values = newValues.get(varName);
-        if (values == null) {
-            return false;
-        }
-        return values.contains(value);
     }
 
     private int pathCostMono(String var, String initValue, String endValue, HashMap<String, String> state,
@@ -1126,6 +1125,64 @@ public class LandmarksHeuristic implements Heuristic {
      * *******************************************************************
      */
     /*                              G O A L                               */
+    @Override
+    public boolean requiresHLandStage() {
+        return (comm.numAgents() > 1)
+                && requiresHLandStage;
+    }
+
+    /**
+     * *******************************************************************
+     */
+    /*         T R A N S I T I O N    C O S T    R E Q U E S T            */
+    @Override
+    public int numGlobalLandmarks() {
+        return landmarks.numGlobalNodes();
+    }
+
+    /**
+     * *******************************************************************
+     */
+    /*            R E P L Y    T R A N S I T I O N    C O S T             */
+    @Override
+    public ArrayList<Integer> checkNewLandmarks(HPlan plan, BitSet achievedLandmarks) {
+        ArrayList<Integer> newLandmarks = new ArrayList<Integer>();
+        HashMap<String, String> state = new HashMap<String, String>();
+        int[] totalOrder = plan.linearization();
+        boolean checked[] = new boolean[landmarkNodes.size()];
+        ArrayList<LandmarkCheck> openLandmarkNodes = new ArrayList<LandmarkCheck>(landmarkNodes.size());
+        for (LandmarkCheck l : rootLandmarkNodes) {
+            openLandmarkNodes.add(l);
+        }
+        ArrayList<Step> stepList = plan.getStepsArray();
+        Step action;
+        for (int step : totalOrder) {
+            action = stepList.get(step);
+            for (Condition eff : action.getEffs()) {
+                String varName = pf.getVarNameFromCode(eff.getVarCode());
+                String valueName = pf.getValueFromCode(eff.getValueCode());
+                if (varName != null && valueName != null) {
+                    state.put(varName, valueName);
+                }
+            }
+            checkLandmarks(openLandmarkNodes, state, checked);
+        }
+        for (int i = 0; i < checked.length; i++) {
+            if (checked[i]) {
+                LandmarkCheck l = landmarkNodes.get(i);
+                if (l.single && !achievedLandmarks.get(l.globalIndex)) {
+                    newLandmarks.add(l.globalIndex);
+                }
+            }
+        }
+        return newLandmarks;
+    }
+
+    /**
+     * *******************************************************************
+     */
+    /*                 L A N D M A R K    C H E C K                       */
+
     /**
      * *******************************************************************
      */
@@ -1169,7 +1226,8 @@ public class LandmarksHeuristic implements Heuristic {
     /**
      * *******************************************************************
      */
-    /*         T R A N S I T I O N    C O S T    R E Q U E S T            */
+    /*               D T G    M E S S A G E    F I L T E R                */
+
     /**
      * *******************************************************************
      */
@@ -1246,10 +1304,6 @@ public class LandmarksHeuristic implements Heuristic {
     /**
      * *******************************************************************
      */
-    /*            R E P L Y    T R A N S I T I O N    C O S T             */
-    /**
-     * *******************************************************************
-     */
     public static class ReplyTransitionCost implements Serializable {
 
         private static final long serialVersionUID = 8450612556336972847L;
@@ -1262,10 +1316,6 @@ public class LandmarksHeuristic implements Heuristic {
         }
     }
 
-    /**
-     * *******************************************************************
-     */
-    /*                 L A N D M A R K    C H E C K                       */
     /**
      * *******************************************************************
      */
@@ -1394,10 +1444,6 @@ public class LandmarksHeuristic implements Heuristic {
     /**
      * *******************************************************************
      */
-    /*               D T G    M E S S A G E    F I L T E R                */
-    /**
-     * *******************************************************************
-     */
     public static class DTGMessageFilter implements MessageFilter {
 
         private int requestId;
@@ -1420,51 +1466,6 @@ public class LandmarksHeuristic implements Heuristic {
             }
             return m.content() instanceof TransitionCostRequest;
         }
-    }
-
-    @Override
-    public boolean requiresHLandStage() {
-        return (comm.numAgents() > 1)
-                && requiresHLandStage;
-    }
-
-    @Override
-    public int numGlobalLandmarks() {
-        return landmarks.numGlobalNodes();
-    }
-
-    @Override
-    public ArrayList<Integer> checkNewLandmarks(HPlan plan, BitSet achievedLandmarks) {
-        ArrayList<Integer> newLandmarks = new ArrayList<Integer>();
-        HashMap<String, String> state = new HashMap<String, String>();
-        int[] totalOrder = plan.linearization();
-        boolean checked[] = new boolean[landmarkNodes.size()];
-        ArrayList<LandmarkCheck> openLandmarkNodes = new ArrayList<LandmarkCheck>(landmarkNodes.size());
-        for (LandmarkCheck l : rootLandmarkNodes) {
-            openLandmarkNodes.add(l);
-        }
-        ArrayList<Step> stepList = plan.getStepsArray();
-        Step action;
-        for (int step : totalOrder) {
-            action = stepList.get(step);
-            for (Condition eff : action.getEffs()) {
-                String varName = pf.getVarNameFromCode(eff.getVarCode());
-                String valueName = pf.getValueFromCode(eff.getValueCode());
-                if (varName != null && valueName != null) {
-                    state.put(varName, valueName);
-                }
-            }
-            checkLandmarks(openLandmarkNodes, state, checked);
-        }
-        for (int i = 0; i < checked.length; i++) {
-            if (checked[i]) {
-                LandmarkCheck l = landmarkNodes.get(i);
-                if (l.single && !achievedLandmarks.get(l.globalIndex)) {
-                    newLandmarks.add(l.globalIndex);
-                }
-            }
-        }
-        return newLandmarks;
     }
 
     public static class WaitMessageFilter implements MessageFilter {

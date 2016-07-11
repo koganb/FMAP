@@ -55,9 +55,9 @@ public class POPOpenCondition implements OpenCondition {
         for(String s: this.condition.getFunction().getParams())
             this.key += s + ",";
 
-        if(this.condition.getType() == EQUAL)
+     if(this.condition.getConditionType() == EQUAL)
             this.key += ")=";
-        if(this.condition.getType() == DISTINCT)
+     if(this.condition.getConditionType() == DISTINCT)
             this.key += ")!=";
         this.key += this.condition.getValue();
     }*/

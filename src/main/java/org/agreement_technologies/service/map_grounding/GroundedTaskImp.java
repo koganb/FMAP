@@ -1,28 +1,13 @@
 package org.agreement_technologies.service.map_grounding;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Hashtable;
+import org.agreement_technologies.common.map_grounding.*;
+import org.agreement_technologies.common.map_parser.*;
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+import org.agreement_technologies.service.map_planner.POPFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedCongestion;
-import org.agreement_technologies.common.map_grounding.GroundedCongestionFluent;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedNumericEff;
-import org.agreement_technologies.common.map_grounding.GroundedNumericExpression;
-import org.agreement_technologies.common.map_grounding.GroundedRule;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
-import org.agreement_technologies.common.map_grounding.ReachedValue;
-import org.agreement_technologies.common.map_parser.Fact;
-import org.agreement_technologies.common.map_parser.Function;
-import org.agreement_technologies.common.map_parser.Metric;
-import org.agreement_technologies.common.map_parser.Parameter;
-import org.agreement_technologies.common.map_parser.SharedData;
-import org.agreement_technologies.common.map_parser.Task;
+import java.util.*;
 
 /**
  * Implementation of a grounded planning task
@@ -31,11 +16,10 @@ import org.agreement_technologies.common.map_parser.Task;
  * @since Mar 2011
  */
 public class GroundedTaskImp implements GroundedTask {
-
-    private static final long serialVersionUID = 9198476578040469582L;
-
     static final int UNDEFINED = 0;
-
+    private static final Logger logger = LoggerFactory.getLogger(GroundedTaskImp.class);
+    private static final long serialVersionUID = 9198476578040469582L;
+    final boolean negationByFailure;
     String domainName;						// Domain name
     String problemName;						// Problem name
     String[] requirements;					// Requirements
@@ -74,7 +58,6 @@ public class GroundedTaskImp implements GroundedTask {
     GroundedMetric metric;
     double violatedCost[];
     boolean metricRequiresMakespan;
-    final boolean negationByFailure;
     ArrayList<GroundedCongestion> congestions;                  // Congestion list
     
     /**
@@ -83,27 +66,37 @@ public class GroundedTaskImp implements GroundedTask {
      * @param task	Parsed planning task
      */
     public GroundedTaskImp(Task task, int sameObjects, boolean negationByFailure) {
+        logger.debug("Creating grounding task");
         this.domainName = task.getDomainName();
         this.problemName = task.getProblemName();
         this.sameObjects = sameObjects;
         this.negationByFailure = negationByFailure;
+
         String[] aux = task.getRequirements();
         this.requirements = new String[aux.length];		// Requirements
         System.arraycopy(aux, 0, this.requirements, 0, aux.length);
+        logger.debug("Requirements: {}", (Object) this.requirements);
+
         aux = task.getTypes();							// Types
         this.types = new String[aux.length];
         System.arraycopy(aux, 0, this.types, 0, aux.length);
         initTypesMatrix(task);
+        logger.debug("Types: {}", (Object) this.types);
+
         aux = task.getObjects();						// Objects
         this.objects = new ArrayList<String>(aux.length + 1);
         this.objects.add("?");
         for (String obj : aux) {
             this.objects.add(obj);
         }
+        logger.debug("Objects: {}", this.objects);
+
         initObjects(task);
+
         vars = new ArrayList<GroundedVarImp>();			// Variables
         numericVars = new ArrayList<>();
         initVariables(task);
+
         actions = new ArrayList<Action>();				// Actions
         actionIndex = new Hashtable<String, Integer>();
         rules = new ArrayList<ActionImp>();				// Rules
@@ -111,6 +104,8 @@ public class GroundedTaskImp implements GroundedTask {
         values = new ArrayList<GroundedValue>();		// Values
         valueIndex = new Hashtable<GroundedValue, Integer>();
         newValues = null;
+
+        logger.debug("Init goals:");
         globalGoals = initGoals(task);					// Goals
         selfInterest = task.getSelfInterest();
         metricThreshold = task.getMetricThreshold();
@@ -198,7 +193,7 @@ public class GroundedTaskImp implements GroundedTask {
      * @return New grounded condition
      */
     @Override
-    public GroundedCond createGroundedCondition(int condition, GroundedVar var, String value) {
+    public GroundedCond createGroundedCondition(ConditionType condition, GroundedVar var, String value) {
         if (var == null) {
             return null;
         }
@@ -211,7 +206,7 @@ public class GroundedTaskImp implements GroundedTask {
             valueIndex = UNDEFINED;
         }
         GroundedValue gVar = new GroundedValue(varIndex, valueIndex);
-        ActionCondition ac = new ActionCondition(gVar, condition == GroundedCond.EQUAL);
+        ActionCondition ac = new ActionCondition(gVar, condition == ConditionType.EQUAL);
         return ac;
     }
 
@@ -294,7 +289,9 @@ public class GroundedTaskImp implements GroundedTask {
             String agName = agentList.get(i);
             agentIndex.put(agName, i);
         }
+        logger.debug("Init agent index: {}", agentIndex);
         initSharedData(task);							// Shared data
+        logger.debug("Init shared data : {}", this.sharedDataByFunction);
     }
 
     /**
@@ -360,7 +357,12 @@ public class GroundedTaskImp implements GroundedTask {
             functions.add(funcList[i]);
             functionIndex.put(funcList[i].getName(), i);
         }
+        logger.debug("functions: {}", functions);
+        logger.debug("functionIndex: {}", functionIndex);
+
         varIndex = new Hashtable<GroundedVarImp, Integer>();
+
+        logger.debug("init: {}", (Object) task.getInit());
         for (Fact fact : task.getInit()) {
             int index = functionIndex.get(fact.getFunctionName());
             Function func = functions.get(index);
@@ -370,6 +372,8 @@ public class GroundedTaskImp implements GroundedTask {
                 initSingleFunctionVariable(fact, func, task, true);
             }
         }
+
+        logger.debug("created grounding vars {}", this.vars);
     }
 
     /**
@@ -421,6 +425,7 @@ public class GroundedTaskImp implements GroundedTask {
         int fncIndex = getFunctionIndex(fact.getFunctionName());
         GroundedVarImp v = new GroundedVarImp(fact.getFunctionName(), varIndex.size(),
                 fncIndex, fact.getParameters());
+        logger.debug("Creating new GroundedVarImp: functionName - {}, varIndex - {}, factParams - {}", fact.getFunctionName(), varIndex.size(), fncIndex, fact.getParameters());
         if (varIndex.containsKey(v)) {	// Existing variable
             v = vars.get(varIndex.get(v));
             if (initialState) {
@@ -508,6 +513,9 @@ public class GroundedTaskImp implements GroundedTask {
                 objectTypes.get(i).add(typeIndex.get(types[j]));
             }
         }
+
+        logger.debug("objectIndex {}", objectIndex);
+        logger.debug("objectTypes {}", objectTypes);
     }
 
     /**
@@ -558,6 +566,7 @@ public class GroundedTaskImp implements GroundedTask {
             }
             list.clear();
         }
+        logger.debug("Types matrix: {}", (Object) this.typesMatrix);
     }
 
     /**
@@ -619,6 +628,7 @@ public class GroundedTaskImp implements GroundedTask {
         for (Function f : functions) {
             staticFunction.add(staticFunctions.containsKey(f.getName()));
         }
+        logger.debug("Set static functions: {}", staticFunctions);
     }
 
     /**
@@ -1006,6 +1016,233 @@ public class GroundedTaskImp implements GroundedTask {
         return congestions;
     }
 
+    @Override
+    public GroundedVar getVarByName(String varName) {
+        return varNames.get(varName);
+    }
+
+    @Override
+    public double getSelfInterestLevel() {
+        return selfInterest;
+    }
+
+    @Override
+    public double getMetricThreshold() {
+        return metricThreshold;
+    }
+
+    @Override
+    public double evaluateMetric(HashMap<String, String> state, double makespan) {
+        return evaluateMetric(metric, state, makespan);
+    }
+
+    private double evaluateMetric(GroundedMetric m, HashMap<String, String> state, double makespan) {
+        double res;
+        switch (m.metricType) {
+            case GroundedMetric.MT_PREFERENCE:
+                String value = state.get(m.preference.getVar().toString());
+                res = value.equals(m.preference.getValue()) ? 0 : 1;
+                break;
+            case GroundedMetric.MT_ADD:
+                res = 0;
+                for (GroundedMetric mt : m.term) {
+                    res += evaluateMetric(mt, state, makespan);
+                }
+                break;
+            case GroundedMetric.MT_MULT:
+                res = evaluateMetric(m.term.get(0), state, makespan);
+                for (int i = 1; i < m.term.size(); i++) {
+                    res *= evaluateMetric(m.term.get(i), state, makespan);
+                }
+                break;
+            case GroundedMetric.MT_TOTAL_TIME:
+                res = makespan;
+                break;
+            case GroundedMetric.MT_NONE:
+                res = 0;
+                break;
+            default:
+                res = m.number;
+        }
+        return res;
+    }
+
+    @Override
+    public double evaluateMetricMulti(HashMap<String, ArrayList<String>> state, double makespan) {
+        return evaluateMetricMulti(metric, state, makespan);
+    }
+
+    private double evaluateMetricMulti(GroundedMetric m, HashMap<String, ArrayList<String>> state,
+                                       double makespan) {
+        double res;
+        switch (m.metricType) {
+            case GroundedMetric.MT_PREFERENCE:
+                ArrayList<String> values = state.get(m.preference.getVar().toString());
+                res = 1;
+                if (values != null) {
+                    for (String value : values) {
+                        if (value.equals(m.preference.getValue())) {
+                            res = 0;
+                            break;
+                        }
+                    }
+                }
+                break;
+            case GroundedMetric.MT_ADD:
+                res = 0;
+                for (GroundedMetric mt : m.term) {
+                    res += evaluateMetricMulti(mt, state, makespan);
+                }
+                break;
+            case GroundedMetric.MT_MULT:
+                res = evaluateMetricMulti(m.term.get(0), state, makespan);
+                for (int i = 1; i < m.term.size(); i++) {
+                    res *= evaluateMetricMulti(m.term.get(i), state, makespan);
+                }
+                break;
+            case GroundedMetric.MT_TOTAL_TIME:
+                res = makespan;
+                break;
+            default:
+                res = m.number;
+        }
+        return res;
+    }
+
+    @Override
+    public ArrayList<GroundedCond> getPreferences() {
+        return preferences;
+    }
+
+    @Override
+    public int getNumPreferences() {
+        return preferences.size();
+    }
+
+    @Override
+    public double getViolatedCost(int prefIndex) {
+        return violatedCost[prefIndex];
+    }
+
+    @Override
+    public boolean metricRequiresMakespan() {
+        return metricRequiresMakespan;
+    }
+
+    public static class GroundedNumericEffImp implements GroundedNumericEff {
+        int type;
+        GroundedVar var;
+        GroundedNumericExpression exp;
+
+        GroundedNumericEffImp(int type, GroundedVar var, GroundedNumericExpression exp) {
+            this.type = type;
+            this.var = var;
+            this.exp = exp;
+        }
+
+        @Override
+        public int getType() {
+            return type;
+        }
+
+        @Override
+        public GroundedVar getVariable() {
+            return var;
+        }
+
+        @Override
+        public GroundedNumericExpression getExpression() {
+            return exp;
+        }
+    }
+
+    public static class GroundedNumericExpressionImp implements GroundedNumericExpression {
+        int type;
+        double value;
+        GroundedVar var;
+        GroundedNumericExpression left, right;
+        GroundedCongestionFluent fluent;
+
+        GroundedNumericExpressionImp(int type, double value) {
+            this.type = type;
+            this.value = value;
+        }
+
+        GroundedNumericExpressionImp(GroundedVar var) {
+            type = VARIABLE;
+            this.var = var;
+            fluent = null;
+        }
+
+        GroundedNumericExpressionImp(int type) {
+            this.type = type;
+        }
+
+        GroundedNumericExpressionImp(GroundedCongestionFluent fluent) {
+            type = VARIABLE;
+            this.fluent = fluent;
+            var = null;
+        }
+
+        GroundedNumericExpressionImp(int type, GroundedNumericExpression left, GroundedNumericExpression right) {
+            this.type = type;
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override
+        public int getType() {
+            return type;
+        }
+
+        @Override
+        public double getValue() {
+            return value;
+        }
+
+        @Override
+        public GroundedVar getVariable() {
+            return var;
+        }
+
+        @Override
+        public GroundedCongestionFluent getFluent() {
+            return fluent;
+        }
+
+        @Override
+        public GroundedNumericExpression getLeftOperand() {
+            return left;
+        }
+
+        @Override
+        public GroundedNumericExpression getRightOperand() {
+            return right;
+        }
+
+        @Override
+        public String toString() {
+            switch (type) {
+                case NUMBER:
+                    return "" + value;
+                case VARIABLE:
+                    return var == null ? fluent.toString() : var.toString();
+                case ADD:
+                    return "(+ (" + left + ") (" + right + "))";
+                case DEL:
+                    return "(- (" + left + ") (" + right + "))";
+                case PROD:
+                    return "(* (" + left + ") (" + right + "))";
+                case DIV:
+                    return "(/ (" + left + ") (" + right + "))";
+                case USAGE:
+                    return "(usage)";
+                default:
+                    return "<error>";
+            }
+        }
+    }
+
     /**
      * Implementation of a grounded variable
      *
@@ -1018,12 +1255,12 @@ public class GroundedTaskImp implements GroundedTask {
         int varIndex;							// Variable index
         String name;							// Variable name
         int fncIndex;							// Function index of the variable name
-        String[] paramNames;                                            // Parameter names
+        String[] paramNames;                    // Parameter names
         int[] paramIndex;						// Parameter indexes
         String[] domain;						// Variable domain
         int[] domainIndex;						// Indexes of the domain types
         int trueValue;							// Initial true value
-        ArrayList<Integer> falseValues;                                 // List of initial false values
+        ArrayList<Integer> falseValues;         // List of initial false values
 
         /**
          * Common constructor
@@ -1140,11 +1377,7 @@ public class GroundedTaskImp implements GroundedTask {
          * Returns a String representation of this variable
          */
         public String toString() {
-            String res = name;
-            for (int i = 0; i < paramNames.length; i++) {
-                res += " " + paramNames[i];
-            }
-            return res;
+            return new POPFunction(this).toString();
         }
 
         /**
@@ -1210,7 +1443,7 @@ public class GroundedTaskImp implements GroundedTask {
             return time;
         }
 
-		// Minimum time, according to the disRPG, in which a given agent can get this 
+        // Minimum time, according to the disRPG, in which a given agent can get this
         // variable to have a given value (objName). Returns -1 if the given agent
         // cannot assign the given value to this variable
         @Override
@@ -1287,112 +1520,6 @@ public class GroundedTaskImp implements GroundedTask {
         }
     }
 
-    public static class GroundedNumericEffImp implements GroundedNumericEff {
-        int type; 
-        GroundedVar var; 
-        GroundedNumericExpression exp;
-
-        GroundedNumericEffImp(int type, GroundedVar var, GroundedNumericExpression exp) {
-            this.type = type;
-            this.var = var;
-            this.exp = exp;
-        }
-
-        @Override
-        public int getType() {
-            return type;
-        }
-
-        @Override
-        public GroundedVar getVariable() {
-            return var;
-        }
-
-        @Override
-        public GroundedNumericExpression getExpression() {
-            return exp;
-        }
-    }
-    
-    public static class GroundedNumericExpressionImp implements GroundedNumericExpression {
-        int type;
-        double value;
-        GroundedVar var;
-        GroundedNumericExpression left, right;
-        GroundedCongestionFluent fluent;
-        
-        GroundedNumericExpressionImp(int type, double value) {
-            this.type = type;
-            this.value = value;
-        }
-
-        GroundedNumericExpressionImp(GroundedVar var) {
-            type = VARIABLE;
-            this.var = var;
-            fluent = null;
-        }
-
-        GroundedNumericExpressionImp(int type) {
-            this.type = type;
-        }
-        
-        GroundedNumericExpressionImp(GroundedCongestionFluent fluent) {
-            type = VARIABLE;
-            this.fluent = fluent;
-            var = null;
-        }
-        
-        GroundedNumericExpressionImp(int type, GroundedNumericExpression left, GroundedNumericExpression right) {
-            this.type = type;
-            this.left = left;
-            this.right = right;
-        }
-
-        @Override
-        public int getType() {
-            return type;
-        }
-
-        @Override
-        public double getValue() {
-            return value;
-        }
-
-        @Override
-        public GroundedVar getVariable() {
-            return var;
-        }
-        
-        @Override
-        public GroundedCongestionFluent getFluent() {
-            return fluent;
-        }
-
-        @Override
-        public GroundedNumericExpression getLeftOperand() {
-            return left;
-        }
-
-        @Override
-        public GroundedNumericExpression getRightOperand() {
-            return right;
-        }
-        
-        @Override
-        public String toString() {
-            switch (type) {
-                case NUMBER:    return "" + value;
-                case VARIABLE:  return var == null ? fluent.toString() : var.toString();
-                case ADD:       return "(+ (" + left + ") (" + right + "))";
-                case DEL:       return "(- (" + left + ") (" + right + "))";
-                case PROD:      return "(* (" + left + ") (" + right + "))";
-                case DIV:       return "(/ (" + left + ") (" + right + "))";
-                case USAGE:     return "(usage)";
-                default:        return "<error>";
-            }
-        }
-    }
-    
     /**
      * Pair (variable index, value index) for the RPG
      *
@@ -1473,21 +1600,20 @@ public class GroundedTaskImp implements GroundedTask {
     public class ActionCondition implements GroundedCond, GroundedEff {
         private static final long serialVersionUID = -8669437306147623737L;
         GroundedValue gv;
-        int condition;		// EQUAL/DISTINCT for conditions (-1 for effects)
+        ConditionType condition;        // EQUAL/DISTINCT for conditions (null for effects)
 
         // Creates a new effect
         public ActionCondition(GroundedValue gv) {
             this.gv = gv;
-            condition = -1;
         }
 
         // Creates a new precondition
         public ActionCondition(GroundedValue gv, boolean isEqual) {
             this.gv = gv;
             if (isEqual) {
-                condition = GroundedCond.EQUAL;
+                condition = ConditionType.EQUAL;
             } else {
-                condition = GroundedCond.DISTINCT;
+                condition = ConditionType.DISTINCT;
             }
         }
 
@@ -1496,10 +1622,10 @@ public class GroundedTaskImp implements GroundedTask {
         }
 
         public ActionCondition(GroundedEff eff) {
-            this(-1, eff.getVar(), eff.getValue());
+            this(null, eff.getVar(), eff.getValue());
         }
 
-        public ActionCondition(int condition, GroundedVar var, String value) {
+        public ActionCondition(ConditionType condition, GroundedVar var, String value) {
             this.condition = condition;
             int valueIndex = getObjectIndex(value);
             /*String params[] = var.getParams();
@@ -1513,7 +1639,7 @@ public class GroundedTaskImp implements GroundedTask {
         }
 
         @Override
-        public int getCondition() {
+        public ConditionType getCondition() {
             return condition;
         }
 
@@ -1529,8 +1655,7 @@ public class GroundedTaskImp implements GroundedTask {
 
         // Returns a description of this condition
         public String toString() {
-            String res = condition != GroundedCond.DISTINCT ? "=" : "<>";
-            return res + " (" + gv.var() + ") " + gv.getValue();
+            return condition == null ? "-" : condition + " (" + gv.var() + ") " + gv.getValue();
         }
 
         //@Sergio
@@ -1571,7 +1696,7 @@ public class GroundedTaskImp implements GroundedTask {
         ActionCondition eff[];
         GroundedNumericEff[] numEff;
         ArrayList<GroundedVar> mutexVar;
-        
+
         // Creates a new action
         public ActionImp(String opName, int numParams, int numPrecs, int numEffs) {
             this.opName = opName;
@@ -1683,7 +1808,7 @@ public class GroundedTaskImp implements GroundedTask {
         public int getMinTime() {
             int t = 0;
             for (ActionCondition c : prec) {
-                if (c.condition == ActionCondition.EQUAL) {
+                if (c.condition == ConditionType.EQUAL) {
                     int vt = c.getVar().getMinTime(c.getValue());
                     if (vt > t) {
                         t = vt;
@@ -1705,7 +1830,7 @@ public class GroundedTaskImp implements GroundedTask {
             }
             if ((sameObjects & SAME_OBJECTS_PREC_EQ_EFF) != 0) {
                 for (ActionCondition c : prec) {
-                    if (c.condition == ActionCondition.EQUAL
+                    if (c.condition == ConditionType.EQUAL
                             && c.gv.varIndex == gv.varIndex
                             && c.gv.valueIndex == gv.valueIndex) {
                         return false;
@@ -1766,7 +1891,7 @@ public class GroundedTaskImp implements GroundedTask {
                 String value = e.getValue();
                 for (ActionCondition prec: a.prec) {
                     if (prec.getVar().equals(v)) {
-                        if (prec.getCondition() == ActionCondition.EQUAL) {
+                        if (prec.getCondition() == ConditionType.EQUAL) {
                             if (!value.equalsIgnoreCase(prec.getValue()))
                                 return true;
                         } else {
@@ -1785,7 +1910,7 @@ public class GroundedTaskImp implements GroundedTask {
             if (mutexVar != null) {
                 for (GroundedVar v: mutexVar) {
                     if (a.requiresVar(v)) return true;
-                    for (ActionCondition e: a.eff) 
+                    for (ActionCondition e : a.eff)
                         if (e.getVar().equals(v))
                             return true;
                     if (a.mutexVar != null && a.mutexVar.contains(v))
@@ -1841,7 +1966,7 @@ public class GroundedTaskImp implements GroundedTask {
                 String types[] = f.getDomain();
                 paramTypes[i] = new int[types.length];
                 for (int j = 0; j < types.length; j++) {
-                    paramTypes[i][j] = typeIndex.get(types[j]);
+                    paramTypes[i][j] = (int) typeIndex.get(types[j]);
                 }
                 valueTypes = new int[1];
                 valueTypes[0] = typeIndex.get("boolean");
@@ -1914,21 +2039,17 @@ public class GroundedTaskImp implements GroundedTask {
             }
             return objectIsCompatible(valueIndex, valueTypes);
         }
-    }
 
-    @Override
-    public GroundedVar getVarByName(String varName) {
-        return varNames.get(varName);
-    }
-
-    @Override
-    public double getSelfInterestLevel() {
-        return selfInterest;
-    }
-
-    @Override
-    public double getMetricThreshold() {
-        return metricThreshold;
+        @Override
+        public String toString() {
+            return "GroundedSharedData{" +
+                    "agents=" + Arrays.toString(agents) +
+                    ", fncIndex=" + fncIndex +
+                    ", params=" + Arrays.toString(params) +
+                    ", paramTypes=" + Arrays.toString(paramTypes) +
+                    ", valueTypes=" + Arrays.toString(valueTypes) +
+                    '}';
+        }
     }
 
     public class GroundedMetric {
@@ -1971,103 +2092,5 @@ public class GroundedTaskImp implements GroundedTask {
                 }
             }
         }
-    }
-
-    @Override
-    public double evaluateMetric(HashMap<String, String> state, double makespan) {
-        return evaluateMetric(metric, state, makespan);
-    }
-
-    private double evaluateMetric(GroundedMetric m, HashMap<String, String> state, double makespan) {
-        double res;
-        switch (m.metricType) {
-            case GroundedMetric.MT_PREFERENCE:
-                String value = state.get(m.preference.getVar().toString());
-                res = value.equals(m.preference.getValue()) ? 0 : 1;
-                break;
-            case GroundedMetric.MT_ADD:
-                res = 0;
-                for (GroundedMetric mt : m.term) {
-                    res += evaluateMetric(mt, state, makespan);
-                }
-                break;
-            case GroundedMetric.MT_MULT:
-                res = evaluateMetric(m.term.get(0), state, makespan);
-                for (int i = 1; i < m.term.size(); i++) {
-                    res *= evaluateMetric(m.term.get(i), state, makespan);
-                }
-                break;
-            case GroundedMetric.MT_TOTAL_TIME:
-                res = makespan;
-                break;
-            case GroundedMetric.MT_NONE:
-                res = 0;
-                break;
-            default:
-                res = m.number;
-        }
-        return res;
-    }
-
-    @Override
-    public double evaluateMetricMulti(HashMap<String, ArrayList<String>> state, double makespan) {
-        return evaluateMetricMulti(metric, state, makespan);
-    }
-
-    private double evaluateMetricMulti(GroundedMetric m, HashMap<String, ArrayList<String>> state,
-            double makespan) {
-        double res;
-        switch (m.metricType) {
-            case GroundedMetric.MT_PREFERENCE:
-                ArrayList<String> values = state.get(m.preference.getVar().toString());
-                res = 1;
-                if (values != null) {
-                    for (String value : values) {
-                        if (value.equals(m.preference.getValue())) {
-                            res = 0;
-                            break;
-                        }
-                    }
-                }
-                break;
-            case GroundedMetric.MT_ADD:
-                res = 0;
-                for (GroundedMetric mt : m.term) {
-                    res += evaluateMetricMulti(mt, state, makespan);
-                }
-                break;
-            case GroundedMetric.MT_MULT:
-                res = evaluateMetricMulti(m.term.get(0), state, makespan);
-                for (int i = 1; i < m.term.size(); i++) {
-                    res *= evaluateMetricMulti(m.term.get(i), state, makespan);
-                }
-                break;
-            case GroundedMetric.MT_TOTAL_TIME:
-                res = makespan;
-                break;
-            default:
-                res = m.number;
-        }
-        return res;
-    }
-
-    @Override
-    public ArrayList<GroundedCond> getPreferences() {
-        return preferences;
-    }
-
-    @Override
-    public int getNumPreferences() {
-        return preferences.size();
-    }
-
-    @Override
-    public double getViolatedCost(int prefIndex) {
-        return violatedCost[prefIndex];
-    }
-
-    @Override
-    public boolean metricRequiresMakespan() {
-        return metricRequiresMakespan;
     }
 }

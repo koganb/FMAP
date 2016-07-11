@@ -14,28 +14,6 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
 	private PlanComparator dtgComparator;
 	private PlanComparator prefComparator;
 	
-	private interface PlanComparator {
-		int compare(IPlan p1, IPlan p2);
-	}
-	
-	private class DTGComparator implements PlanComparator {
-		@Override
-		public int compare(IPlan p1, IPlan p2) {
-                        //if(p1.getH() == 0 || p1.getH() == 0)
-                        //    return p1.getH() - p2.getH();
-			int f1 = (p1.getH() << 1) + p1.getG();
-			int f2 = (p2.getH() << 1) + p2.getG();
-			return f1 - f2;
-		}
-	}
-	
-	private class PrefComparator implements PlanComparator {
-		@Override
-		public int compare(IPlan p1, IPlan p2) {
-			return p1.getHLan() - p2.getHLan();
-		}
-	}
-	
 	public POPSearchMethodTwoQueues(POPIncrementalPlan initialIncrementalPlan) {
 		dtgQueue = new IPlan[INITIAL_SIZE];
 		prefQueue = new IPlan[INITIAL_SIZE];
@@ -48,7 +26,7 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
         addToQueue(initialIncrementalPlan);
 	}
 
-	@Override
+    @Override
 	public IPlan getNextPlan() {
 		if (dtgSize == 0 && prefSize == 0) return null;
 		if (dtgSize == 0 && firstQueue) firstQueue = false;
@@ -65,7 +43,7 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
 		return min;
 	}
 
-	private int removePlan(String name, IPlan[] queue, int size, Hashtable<String, Integer> planPosition,
+    private int removePlan(String name, IPlan[] queue, int size, Hashtable<String, Integer> planPosition,
 			PlanComparator comp) {
 		Integer k = planPosition.get(name);
 		if (k == null) return size;
@@ -89,9 +67,9 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
 		return size;
 	}
 
-	private void sink(int gap, IPlan[] queue, int size,
+    private void sink(int gap, IPlan[] queue, int size,
 			Hashtable<String, Integer> planPosition, PlanComparator comp) {
-		IPlan aux = queue[gap]; 
+        IPlan aux = queue[gap];
         int child = gap << 1;
         boolean ok = false;
         while (child <= size && !ok) {
@@ -100,13 +78,13 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
             if (comp.compare(queue[child], aux) < 0) {
             	planPosition.put(queue[child].getName(), gap);
             	queue[gap] = queue[child];
-                gap = child; 
+                gap = child;
                 child = gap << 1;
             } else ok = true;
         }
         queue[gap] = aux;
-        planPosition.put(aux.getName(), gap);		
-	}
+        planPosition.put(aux.getName(), gap);
+    }
 
 	@Override
 	public IPlan getNextPlanResume() {
@@ -217,4 +195,27 @@ public class POPSearchMethodTwoQueues implements POPSearchMethod {
 		System.arraycopy(queue, 0, newQueue, 0, queue.length);
 		return newQueue;
 	}
+
+    private interface PlanComparator {
+        int compare(IPlan p1, IPlan p2);
+    }
+
+    private class DTGComparator implements PlanComparator {
+        @Override
+        public int compare(IPlan p1, IPlan p2) {
+            //if(p1.getH() == 0 || p1.getH() == 0)
+            //    return p1.getH() - p2.getH();
+            int f1 = (p1.getH() << 1) + p1.getG();
+            int f2 = (p2.getH() << 1) + p2.getG();
+            return f1 - f2;
+        }
+    }
+
+    private class PrefComparator implements PlanComparator {
+        @Override
+        public int compare(IPlan p1, IPlan p2) {
+            return p1.getHLan() - p2.getHLan();
+        }
+    }
+
 }

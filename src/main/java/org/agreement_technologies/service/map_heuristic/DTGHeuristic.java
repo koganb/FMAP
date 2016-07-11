@@ -1,25 +1,24 @@
 package org.agreement_technologies.service.map_heuristic;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashMap;
-import java.util.PriorityQueue;
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_communication.Message;
 import org.agreement_technologies.common.map_communication.MessageFilter;
 import org.agreement_technologies.common.map_dtg.DTG;
 import org.agreement_technologies.common.map_dtg.DTGSet;
 import org.agreement_technologies.common.map_dtg.DTGTransition;
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
+import org.agreement_technologies.common.map_grounding.*;
 import org.agreement_technologies.common.map_heuristic.HPlan;
 import org.agreement_technologies.common.map_heuristic.Heuristic;
 import org.agreement_technologies.common.map_planner.PlannerFactory;
 import org.agreement_technologies.service.map_dtg.DTGSetImp;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
+import java.util.PriorityQueue;
+
+import static org.agreement_technologies.common.map_planner.Condition.ConditionType.EQUAL;
 
 public class DTGHeuristic implements Heuristic {
 	private static final int PENALTY = 1000;
@@ -49,7 +48,7 @@ public class DTGHeuristic implements Heuristic {
 			for (GroundedVar v: gTask.getVars())
 				if (v.toString().equals(g.varName)) { var = v; break; }
 			if (var != null) {
-				Goal ng = new Goal(gTask.createGroundedCondition(GroundedCond.EQUAL, var, g.value), 0);
+				Goal ng = new Goal(gTask.createGroundedCondition(EQUAL, var, g.value), 0);
 				goals.add(ng);
 			}
 		}
@@ -69,7 +68,61 @@ public class DTGHeuristic implements Heuristic {
 		}
 		requestId = 0;
 	}
-	
+
+	private static String selectInitialValueMono(String varName, String endValue, DTG dtg,
+												 HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues) {
+		String bestValue = state.get(varName);
+		int bestCost = dtg.pathCost(bestValue, endValue, state, newValues, 0);
+		ArrayList<String> valueList = newValues.get(varName);
+		if (valueList != null)
+			for (int i = 0; i < valueList.size(); i++) {
+				String value = valueList.get(i);
+				int cost = dtg.pathCost(value, endValue, state, newValues, 0);
+				if (cost != -1 && cost < bestCost) {
+					bestCost = cost;
+					bestValue = value;
+				}
+			}
+		return bestValue;
+	}
+
+	private static boolean holdsMono(String varName, String value, HashMap<String, String> state,
+									 HashMap<String, ArrayList<String>> newValues) {
+		String v = state.get(varName);
+		if (v != null && v.equals(value)) return true;
+		ArrayList<String> values = newValues.get(varName);
+		if (values == null) return false;
+		return values.contains(value);
+	}
+
+	private static String selectInitialValueMulti(String varName, String endValue, DTG dtg,
+												  HashMap<String, ArrayList<String>> varValues) {
+		ArrayList<String> valueList = varValues.get(varName);
+		if (valueList == null) return "?";
+		String bestValue = null;
+		int bestCost = -1;
+		for (String value : valueList)
+			if (bestValue == null) {
+				bestCost = dtg.pathCostMulti(value, endValue);
+				bestValue = value;
+			} else {
+				int cost = dtg.pathCostMulti(value, endValue);
+				if (cost != -1 && cost < bestCost) {
+					bestCost = cost;
+					bestValue = value;
+				}
+			}
+		return bestValue != null ? bestValue : "?";
+	}
+
+	/*********************************************************************/
+	/*                         M O N O - A G E N T                       */
+	private static boolean holds(String varName, String value, HashMap<String, ArrayList<String>> varValues) {
+		ArrayList<String> values = varValues.get(varName);
+		if (values == null) return false;
+		return values.contains(value);
+	}
+
 	@Override
 	public void startEvaluation(HPlan basePlan) {
 		this.basePlan = basePlan;
@@ -86,7 +139,7 @@ public class DTGHeuristic implements Heuristic {
 		else
 			evaluateMultiagentPlan();
 	}
-	
+
 	@Override
 	public void evaluatePlanPrivacy(HPlan p, int threadIndex) {
 		if (p.isSolution() || pgoals.isEmpty()) return;
@@ -98,20 +151,18 @@ public class DTGHeuristic implements Heuristic {
 	}
 
 	/*********************************************************************/
-	/*                         M O N O - A G E N T                       */
-	/*********************************************************************/
-	
+
 	private void evaluateMonoagentPlan() {
 		int h = 0;
 		HashMap<String, String> state;
 		HashMap<String, ArrayList<String>> newValues = new HashMap<String, ArrayList<String>>();
 		int totalOrder[] = currentPlan.linearization();
 		state = currentPlan.computeState(totalOrder, pf);
-		PriorityQueue<Goal> openGoals = new PriorityQueue<Goal>();		
+		PriorityQueue<Goal> openGoals = new PriorityQueue<Goal>();
 		for (Goal g: goals) {		// Global goals
 			String v = g.varName, end = g.varValue;
 			if (!holdsMono(v, end, state, newValues)) {
-				String init = selectInitialValueMono(v, end, dtgs.getDTG(v), state, newValues); 
+				String init = selectInitialValueMono(v, end, dtgs.getDTG(v), state, newValues);
 				g.distance = pathCostMono(v, init, end, state, newValues);
 				if (g.distance >= INFINITE) { h = INFINITE; break; }
 				openGoals.add(g);
@@ -132,7 +183,7 @@ public class DTGHeuristic implements Heuristic {
 			state = currentPlan.computeState(totalOrder, pf);
 			newValues = new HashMap<String, ArrayList<String>>();
 		}
-		PriorityQueue<Goal> openGoals = new PriorityQueue<Goal>();		
+		PriorityQueue<Goal> openGoals = new PriorityQueue<Goal>();
 		for (int i = 0; i < pgoals.size(); i++) {	// Preferences
 			int hp = 0;
 			Goal g = pgoals.get(i);
@@ -152,33 +203,16 @@ public class DTGHeuristic implements Heuristic {
 
 	}
 
-	private static String selectInitialValueMono(String varName, String endValue, DTG dtg,
-			HashMap<String,String> state, HashMap<String, ArrayList<String>> newValues) {
-		String bestValue = state.get(varName);
-		int bestCost = dtg.pathCost(bestValue, endValue, state, newValues, 0);
-		ArrayList<String> valueList = newValues.get(varName);
-		if (valueList != null)
-		for (int i = 0; i < valueList.size(); i++) {
-			String value = valueList.get(i);
-			int cost = dtg.pathCost(value, endValue, state, newValues, 0);
-			if (cost != -1 && cost < bestCost) {
-				bestCost = cost;
-				bestValue = value;
-			}
-		}
-		return bestValue;
-	}
-
 	/**
 	 * Mono-agent heuristic goal evaluation
 	 * @param goal Goal to be evaluated
-	 * @param openGoals	List of open goals 
+	 * @param openGoals    List of open goals
 	 * @param varValues State
-	 * @param queueGoals 
+	 * @param queueGoals
 	 * @return Goal cost
 	 */
-	private int solveConditionMono(Goal goal, PriorityQueue<Goal> openGoals, 
-			HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues) {
+	private int solveConditionMono(Goal goal, PriorityQueue<Goal> openGoals,
+								   HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues) {
 		int h = 0;
 		String varName = goal.varName, varValue = goal.varValue;
 		if (holdsMono(varName, varValue, state, newValues)) return h;
@@ -190,9 +224,9 @@ public class DTGHeuristic implements Heuristic {
 		for (int i = 1; i < path.length; i++) {
 			nextValue = path[i];
 			Action a = selectProductorMono(varName, prevValue, nextValue, state, newValues);
-			if (a == null) { 
-				h = INFINITE; 
-				break; 
+			if (a == null) {
+				h = INFINITE;
+				break;
 			}
 			h++;
 			updateValuesAndGoalsMono(a, openGoals, state, newValues);
@@ -207,7 +241,7 @@ public class DTGHeuristic implements Heuristic {
 		if (productors == null || productors.isEmpty()) return null;
 		Action bestAction = null;
 		int costBest = INFINITE;
-		for (int i = 0; i < productors.size(); i++) 
+		for (int i = 0; i < productors.size(); i++)
 			if (hasPrecondition(productors.get(i), varName, startValue)) {
 				int cost = computeCostMono(productors.get(i), state, newValues);
 				if (cost < costBest) {
@@ -225,14 +259,14 @@ public class DTGHeuristic implements Heuristic {
 			}
 		return true;	// Variable not in preconditions -> a specific value is not required
 	}
-	
-	private void updateValuesAndGoalsMono(Action a, PriorityQueue<Goal> openGoals, 
-			HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues) {
+
+	private void updateValuesAndGoalsMono(Action a, PriorityQueue<Goal> openGoals,
+										  HashMap<String, String> state, HashMap<String, ArrayList<String>> newValues) {
 		// Add a's preconditions to open goals if they do not hold
 		for (GroundedCond p: a.getPrecs()) {
 			String precVarName = p.getVar().toString();
 			if (!holdsMono(precVarName, p.getValue(), state, newValues)) {
-				String precInitValue = selectInitialValueMono(precVarName, p.getValue(), 
+				String precInitValue = selectInitialValueMono(precVarName, p.getValue(),
 						dtgs.getDTG(precVarName), state, newValues);
 				Goal newOpenGoal = new Goal(p, pathCostMono(precVarName, precInitValue, p.getValue(),
 						state, newValues));
@@ -242,7 +276,7 @@ public class DTGHeuristic implements Heuristic {
 		// Add a's effects to varValues
 		for (GroundedEff e: a.getEffs()) {
 			String v = e.getVar().toString();
-			if (!state.get(v).equals(e.getValue())) {	
+			if (!state.get(v).equals(e.getValue())) {
 				ArrayList<String> values = newValues.get(v);
 				if (values == null) {
 					values = new ArrayList<String>();
@@ -255,16 +289,10 @@ public class DTGHeuristic implements Heuristic {
 			}
 		}
 	}
-	
-	private static boolean holdsMono(String varName, String value, HashMap<String, String> state, 
-			HashMap<String, ArrayList<String>> newValues) {
-		String v = state.get(varName);
-		if (v != null && v.equals(value)) return true;
-		ArrayList<String> values = newValues.get(varName);
-		if (values == null) return false;
-		return values.contains(value);
-	}
-	
+
+	/*********************************************************************/
+	/*                       M U L T I - A G E N T                       */
+
 	private int pathCostMono(String var, String initValue, String endValue, HashMap<String, String> state,
 			HashMap<String, ArrayList<String>> newValues) {
 		DTG dtg = dtgs.getDTG(var);
@@ -285,13 +313,11 @@ public class DTGHeuristic implements Heuristic {
 				int precCost = dtg.pathCost(initValue, prec.getValue(), state, newValues, 0);
 				if (precCost < minPrecCost) minPrecCost = precCost;
 			}
-			cost += minPrecCost;			
-		}	
+			cost += minPrecCost;
+		}
 		return cost;
 	}
-	
-	/*********************************************************************/
-	/*                       M U L T I - A G E N T                       */
+
 	/*********************************************************************/
 
 	private void evaluateMultiagentPlan() {
@@ -302,7 +328,7 @@ public class DTGHeuristic implements Heuristic {
 		for (Goal g: goals) {
 			String v = g.varName, end = g.varValue;
 			if (!holds(v, end, varValues)) {
-				String init = selectInitialValueMulti(v, end, dtgs.getDTG(v), varValues); 
+				String init = selectInitialValueMulti(v, end, dtgs.getDTG(v), varValues);
 				g.distance = pathCostMulti(v, init, end);
 				openGoals.add(g);
 			}
@@ -312,7 +338,7 @@ public class DTGHeuristic implements Heuristic {
 		currentPlan.setH(h, 0);
 		evaluateMultiagentPlanPrivacy(varValues);
 	}
-	
+
 	private void evaluateMultiagentPlanPrivacy(
 			HashMap<String, ArrayList<String>> varValues) {
 		if (varValues == null) {
@@ -325,7 +351,7 @@ public class DTGHeuristic implements Heuristic {
 			Goal g = pgoals.get(i);
 			String v = g.varName, end = g.varValue;
 			if (!holds(v, end, varValues)) {
-				String init = selectInitialValueMulti(v, end, dtgs.getDTG(v), varValues); 
+				String init = selectInitialValueMulti(v, end, dtgs.getDTG(v), varValues);
 				g.distance = pathCostMulti(v, init, end);
 				openGoals.add(g);
 			}
@@ -334,39 +360,19 @@ public class DTGHeuristic implements Heuristic {
 			currentPlan.setHPriv(hp, i);
 		}
 	}
-		
+
 	private int pathCostMulti(String var, String initValue, String endValue) {
 		DTG dtg = dtgs.getDTG(var);
 		return dtg.pathCostMulti(initValue, endValue);
 	}
 
-	private static String selectInitialValueMulti(String varName, String endValue, DTG dtg,
-			HashMap<String, ArrayList<String>> varValues) {
-		ArrayList<String> valueList = varValues.get(varName);
-		if (valueList == null) return "?";
-		String bestValue = null;
-		int bestCost = -1;
-		for (String value: valueList)
-			if (bestValue == null) {
-				bestCost = dtg.pathCostMulti(value, endValue);
-				bestValue = value;
-			} else {
-				int cost = dtg.pathCostMulti(value, endValue);
-				if (cost != -1 && cost < bestCost) {
-					bestCost = cost;
-					bestValue = value;
-				}
-			}
-		return bestValue != null ? bestValue : "?";
-	}
-	
 	/**
 	 * Multi-agent heuristic goal evaluation
 	 * @param goal Goal to be evaluated
 	 * @return Goal cost
 	 */
-	private int solveConditionMulti(Goal goal, HashMap<String, ArrayList<String>> varValues, 
-			PriorityQueue<Goal> openGoals, TransitionCostRequest tcr) {
+	private int solveConditionMulti(Goal goal, HashMap<String, ArrayList<String>> varValues,
+									PriorityQueue<Goal> openGoals, TransitionCostRequest tcr) {
 		int h;
 		String varName = goal.varName, varValue = goal.varValue;
 		if (holds(varName, varValue, varValues)) return 0;
@@ -377,22 +383,22 @@ public class DTGHeuristic implements Heuristic {
 					openGoals);
 		} else {						// Unknown values
 			if (dtg.unknownValue(varValue))
-				h = evaluateWithUnknownFinalvalue(varName, initValue, varValue, dtg, varValues, 
+				h = evaluateWithUnknownFinalvalue(varName, initValue, varValue, dtg, varValues,
 						tcr, openGoals);
 			else
-				h = evaluateWithUnknownInitialvalue(varName, varValue, dtg, varValues, 
+				h = evaluateWithUnknownInitialvalue(varName, varValue, dtg, varValues,
 						tcr, openGoals);
 		}
 		return h;
 	}
 
-	private int evaluateWithUnknownInitialvalue(String varName, String varValue, DTG dtg, 
-			HashMap<String, ArrayList<String>> varValues, TransitionCostRequest tcr, 
+	private int evaluateWithUnknownInitialvalue(String varName, String varValue, DTG dtg,
+												HashMap<String, ArrayList<String>> varValues, TransitionCostRequest tcr,
 			PriorityQueue<Goal> openGoals) {
 		int h = PENALTY;
 		DTGTransition[] transitions = dtg.getTransitionsFrom("?");
 		for (DTGTransition t: transitions)
-			if (tcr == null || !tcr.varName.equals(varName) || !tcr.endValue.equals(t.getFinalValue())) {			
+			if (tcr == null || !tcr.varName.equals(varName) || !tcr.endValue.equals(t.getFinalValue())) {
 			//sop("Solving condition " + varName + "=" + varValue + " (init value: ?->" + t.getFinalValue() +  ")");
 			int cost = requestTransitionCost(varName, "?", t.getFinalValue(), varValues, dtg, tcr);
 			if (cost != PENALTY) {	// Achieved
@@ -403,7 +409,7 @@ public class DTGHeuristic implements Heuristic {
 					varValues.put(varName, values);
 				} else if (!values.contains(t.getFinalValue()))
 					values.add(t.getFinalValue());
-				int restCost = evaluateWithKnownValues(varName, t.getFinalValue(), varValue, dtg, 
+				int restCost = evaluateWithKnownValues(varName, t.getFinalValue(), varValue, dtg,
 						varValues, tcr, openGoals);
 				if (restCost != PENALTY) {
 					h = cost + restCost;
@@ -413,19 +419,19 @@ public class DTGHeuristic implements Heuristic {
 		}
 		return h;
 	}
-	
-	private int evaluateWithUnknownFinalvalue(String varName, String initValue, String varValue, 
-			DTG dtg, HashMap<String, ArrayList<String>> varValues, TransitionCostRequest tcr, 
-			PriorityQueue<Goal> openGoals) {
+
+	private int evaluateWithUnknownFinalvalue(String varName, String initValue, String varValue,
+											  DTG dtg, HashMap<String, ArrayList<String>> varValues, TransitionCostRequest tcr,
+											  PriorityQueue<Goal> openGoals) {
 		int h = PENALTY;
 		DTGTransition[] transitions = dtg.getTransitionsTo("?");
 		if (transitions != null) {
-			for (DTGTransition t: transitions) {	
+			for (DTGTransition t : transitions) {
 				openGoals = new PriorityQueue<DTGHeuristic.Goal>();
-				int cost = evaluateWithKnownValues(varName, initValue, t.getStartValue(), dtg, 
+				int cost = evaluateWithKnownValues(varName, initValue, t.getStartValue(), dtg,
 						varValues, tcr, openGoals);
 				if (cost != PENALTY) {
-					int restCost = requestTransitionCost(varName, t.getStartValue(), varValue, 
+					int restCost = requestTransitionCost(varName, t.getStartValue(), varValue,
 							varValues, dtg, tcr);
 					if (restCost != PENALTY) {
 						h = cost + restCost;
@@ -435,12 +441,6 @@ public class DTGHeuristic implements Heuristic {
 			}
 		}
 		return h;
-	}
-	
-	private static boolean holds(String varName, String value, HashMap<String, ArrayList<String>> varValues) {
-		ArrayList<String> values = varValues.get(varName);
-		if (values == null) return false;
-		return values.contains(value);
 	}
 
 	private int evaluateWithKnownValues(String varName, String initValue, String varValue, DTG dtg, 
@@ -646,12 +646,82 @@ public class DTGHeuristic implements Heuristic {
 
 	/**********************************************************************/
 	/*                              G O A L                               */
+
 	/**********************************************************************/
-	
+
+	/*
+	private static class Fluent implements LandmarkFluent {
+		String var, value;
+
+		public Fluent(String varName, String varValue) {
+			var = varName;
+			value = varValue;
+		}
+		@Override
+		public String toString() {
+			return var + "=" + value;
+		}
+		@Override
+		public int hashCode() {
+			return (var + "=" + value).hashCode();
+		}
+		@Override
+		public boolean equals(Object x) {
+			LandmarkFluent f = (LandmarkFluent) x;
+			return var.equals(f.getVarName()) && value.equals(f.getValue());
+		}
+		@Override
+		public GroundedVar getVar() {
+			throw new RuntimeException("Not implemented");
+		}
+		@Override
+		public String getValue() {
+			return value;
+		}
+		@Override
+		public String getVarName() {
+			return var;
+		}
+	}*/
+	@Override
+	public Object getInformation(int infoFlag) {
+		return null;
+	}
+
+	/**********************************************************************/
+	/*         T R A N S I T I O N    C O S T    R E Q U E S T            */
+	@Override
+	public boolean requiresHLandStage() {
+		return false;
+	}
+
+	/**********************************************************************/
+	/*            R E P L Y    T R A N S I T I O N    C O S T             */
+	@Override
+	public void evaluatePlan(HPlan p, int threadIndex, ArrayList<Integer> achievedLandmarks) {
+	}
+
+	/**********************************************************************/
+	/*               D T G    M E S S A G E    F I L T E R                */
+	@Override
+	public int numGlobalLandmarks() {
+		return 0;
+	}
+
+	/**********************************************************************/
+	/*                              G O A L                               */
+	@Override
+	public ArrayList<Integer> checkNewLandmarks(HPlan plan,
+												BitSet achievedLandmarks) {
+		return null;
+	}
+
+	/**********************************************************************/
+
 	private static class Goal implements Comparable<Goal> {
 		String varName, varValue;
 		int distance;
-		
+
 		public Goal(GroundedCond goal, int distance) {
 			this(goal.getVar().toString(), goal.getValue(), distance);
 		}
@@ -681,19 +751,17 @@ public class DTGHeuristic implements Heuristic {
 			return varName.equals(g.varName) && varValue.equals(g.varValue);
 		}
 	}
-	
+
 	/**********************************************************************/
-	/*         T R A N S I T I O N    C O S T    R E Q U E S T            */
-	/**********************************************************************/
-	
+
 	public static class TransitionCostRequest implements java.io.Serializable {
 		private static final long serialVersionUID = 5485301296724177527L;
 		public ArrayList<String> agents;
 		public String varName, startValue, endValue;
 		public ArrayList<ArrayList<String>> varValuesList;
 		public int requestId;
-		
-		public TransitionCostRequest(String varName, String prevValue, String nextValue, 
+
+		public TransitionCostRequest(String varName, String prevValue, String nextValue,
 				String agentName, TransitionCostRequest prevTcr, int requestId) {
 			this.varName = varName;
 			this.startValue = prevValue;
@@ -743,35 +811,31 @@ public class DTGHeuristic implements Heuristic {
 				}
 			}
 		}
-		
+
 		public String toString() {
 			return varName + "(" + startValue + "->" + endValue + ")";
 		}
 	}
-	
+
 	/**********************************************************************/
-	/*            R E P L Y    T R A N S I T I O N    C O S T             */
-	/**********************************************************************/
-	
+
 	public static class ReplyTransitionCost implements Serializable {
 		private static final long serialVersionUID = 8450612556336972847L;
 		int cost;
 		int requestId;
-		
+
 		public ReplyTransitionCost(int cost, int requestId) {
 			this.cost = cost;
 			this.requestId = requestId;
 		}
 	}
-	
+
 	/**********************************************************************/
-	/*               D T G    M E S S A G E    F I L T E R                */
-	/**********************************************************************/
-	
+
 	public static class DTGMessageFilter implements MessageFilter {
 		private int requestId;
 		private ArrayList<String> askedAgents;
-		
+
 		public DTGMessageFilter(ArrayList<String> askedAgents, int requestId) {
 			this.requestId = requestId;
 			this.askedAgents = askedAgents;
@@ -782,75 +846,11 @@ public class DTGHeuristic implements Heuristic {
 			if (m.content() instanceof ReplyTransitionCost)
 				return ((ReplyTransitionCost)m.content()).requestId == requestId &&
 					askedAgents.contains(m.sender());
-			if (m.content() instanceof String && 
+			if (m.content() instanceof String &&
 				((String)m.content()).equals(AgentCommunication.END_STAGE_MESSAGE))
 				return true;
-			return m.content() instanceof TransitionCostRequest;		
+			return m.content() instanceof TransitionCostRequest;
 		}
-	}
-
-	/**********************************************************************/
-	/*                              G O A L                               */
-	/**********************************************************************/
-	
-	/*
-	private static class Fluent implements LandmarkFluent {
-		String var, value;
-
-		public Fluent(String varName, String varValue) {
-			var = varName;
-			value = varValue;
-		}
-		@Override
-		public String toString() {
-			return var + "=" + value;
-		}
-		@Override
-		public int hashCode() {
-			return (var + "=" + value).hashCode();
-		}
-		@Override
-		public boolean equals(Object x) {
-			LandmarkFluent f = (LandmarkFluent) x;
-			return var.equals(f.getVarName()) && value.equals(f.getValue());
-		}
-		@Override
-		public GroundedVar getVar() {
-			throw new RuntimeException("Not implemented");
-		}
-		@Override
-		public String getValue() {
-			return value;
-		}
-		@Override
-		public String getVarName() {
-			return var;
-		}
-	}*/
-
-	@Override
-	public Object getInformation(int infoFlag) {
-		return null;
-	}
-
-	@Override
-	public boolean requiresHLandStage() {
-		return false;
-	}
-
-	@Override
-	public void evaluatePlan(HPlan p, int threadIndex, ArrayList<Integer> achievedLandmarks) {
-	}
-
-	@Override
-	public int numGlobalLandmarks() {
-		return 0;
-	}
-
-	@Override
-	public ArrayList<Integer> checkNewLandmarks(HPlan plan,
-			BitSet achievedLandmarks) {
-		return null;
 	}
 
 	/*

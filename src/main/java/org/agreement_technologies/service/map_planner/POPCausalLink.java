@@ -33,22 +33,18 @@ public class POPCausalLink implements CausalLink {
 		return this.condition.getCondition();
 	}
 
-	@Override
-	public int getIndex2() {
-		return this.step2.getIndex();
-	}
-
 	public void setCondition(POPPrecEff v) {
 		this.condition = v;
 	}
 
 	@Override
-	public String toString() {
-		String res = "(" + this.getIndex1() + ") -";
-		res += this.condition.toString() + "-> (";
-		res += this.getIndex2() + ")";
+	public int getIndex2() {
+		return this.step2.getIndex();
+	}
 
-		return res;
+	@Override
+	public String toString() {
+		return String.format("%s - (%s -> %s)", condition, getIndex1(), getIndex2());
 	}
 
 	@Override

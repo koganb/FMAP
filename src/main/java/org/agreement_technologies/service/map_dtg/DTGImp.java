@@ -1,20 +1,13 @@
 package org.agreement_technologies.service.map_dtg;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.PriorityQueue;
-import java.util.Vector;
-
 import org.agreement_technologies.common.map_dtg.DTG;
 import org.agreement_technologies.common.map_dtg.DTGRequest;
 import org.agreement_technologies.common.map_dtg.DTGSet;
 import org.agreement_technologies.common.map_dtg.DTGTransition;
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
+import org.agreement_technologies.common.map_grounding.*;
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+
+import java.util.*;
 
 public class DTGImp implements DTG {
 	private static final int MAX_SEARCH_NODES = 9999;
@@ -77,8 +70,8 @@ public class DTGImp implements DTG {
 	
 	private void addTransition(Action a, GroundedEff eff, String fromAgent) {
 		GroundedCond prec = requires(a, var);
-		int toValue = valueIndex.get(eff.getValue());		
-		if (prec == null || prec.getCondition() == GroundedCond.DISTINCT) {
+		int toValue = valueIndex.get(eff.getValue());
+		if (prec == null || prec.getCondition() == ConditionType.DISTINCT) {
 			for (int fromValue = 0; fromValue < values.length; fromValue++)
 				if (toValue != fromValue) {
 					Transition t = getTransition(fromValue, toValue);
@@ -337,17 +330,26 @@ public class DTGImp implements DTG {
 
 	/*************************************************/
 	/*            D i s t a n c e T o V              */
-	/*************************************************/
+	@Override
+	public void clearCache(int threadIndex) {
+		getShortestPathTable(threadIndex).clear();
+		getDistanceTable(threadIndex).clear();
+	}
 	
+	/*************************************************/
+	/*             T R A N S I T I O N               */
+
+	/*************************************************/
+
 	private static class DistanceToV implements Comparable<DistanceToV> {
 		int index;
 		int cost;
-		
-		public DistanceToV(int index,int cost) { 
+
+		public DistanceToV(int index, int cost) {
 			this.index = index;
-			this.cost = cost; 
+			this.cost = cost;
 		}
-		
+
 		public int compareTo(DistanceToV dv) {
 			if (cost < dv.cost) return -1;
 			else if (cost > dv.cost) return 1;
@@ -356,9 +358,33 @@ public class DTGImp implements DTG {
 	}
 	
 	/*************************************************/
-	/*             T R A N S I T I O N               */
+	/*                   P A T H                     */
+
+	private static class TransitionMemo {
+		String fromValue;
+		String toValue;
+
+		public TransitionMemo(String initialValue, String endValue) {
+			this.fromValue = initialValue;
+			this.toValue = endValue;
+		}
+
+		public boolean equals(Object x) {
+			TransitionMemo tm = (TransitionMemo) x;
+			return tm.fromValue.equals(fromValue) && tm.toValue.equals(toValue);
+		}
+
+		public String toString() {
+			return fromValue + " " + toValue;
+		}
+
+		public int hashCode() {
+			return (fromValue + " " + toValue).hashCode();
+		}
+	}
+
 	/*************************************************/
-	
+
 	public class Transition implements DTGTransition {
 		int fromValue, toValue, cost;
 		ArrayList<Action> actions;
@@ -366,7 +392,7 @@ public class DTGImp implements DTG {
 		ArrayList<GroundedEff> commonEffs;
 		boolean newTransition;
 		ArrayList<String> agents;
-		
+
 		public Transition(int fromValue, int toValue, Action a, String agent) {
 			agents = new ArrayList<String>();
 			agents.add(agent);
@@ -382,10 +408,6 @@ public class DTGImp implements DTG {
 			for (GroundedEff eff: a.getEffs())
 				commonEffs.add(eff);
 			cost = -1;
-		}
-		
-		public int getCost() {
-			return 1;
 		}
 
 		public Transition(int svIndex, int fvIndex, GroundedCond[] precs,
@@ -404,11 +426,15 @@ public class DTGImp implements DTG {
 				commonEffs.add(eff);
 		}
 
+		public int getCost() {
+			return 1;
+		}
+
 		public void boundCommonPrecs(GroundedCond[] precs, String fromAgent) {
 			int i = 0;
 			while (i < commonPrecs.size()) {
 				boolean exists = false;
-				GroundedCond cPrec = commonPrecs.get(i); 
+				GroundedCond cPrec = commonPrecs.get(i);
 				for (GroundedCond p: precs)
 					if (p.getCondition() == cPrec.getCondition() &&
 						p.getVar().equals(cPrec.getVar()) &&
@@ -460,7 +486,7 @@ public class DTGImp implements DTG {
 					return true;
 			return false;
 		}
-		
+
 		public String toString() {
 			String s1 = "";
 			for (GroundedCond c: commonPrecs)
@@ -474,7 +500,7 @@ public class DTGImp implements DTG {
 			for (GroundedEff c: commonEffs)
 				if (s3.equals("")) s3 = c.toString();
 				else s3 = s3 + "," + c.toString();
-			return "[" + agents + "] " + values[fromValue] + "->" + values[toValue] + 
+			return "[" + agents + "] " + values[fromValue] + "->" + values[toValue] +
 				" [" + s1 + "]" + " {" + s2 + "}" + " [" + s3 + "]";
 		}
 
@@ -510,13 +536,11 @@ public class DTGImp implements DTG {
 	}
 	
 	/*************************************************/
-	/*                   P A T H                     */
-	/*************************************************/
-	
+
 	public class Path {
 		private String path[];
 		private int cost;
-		
+
 		public Path(String initialValue, String endValue, HashMap<String,String> state,
 				HashMap<String, ArrayList<String>> newValues, int threadIndex) {
 			path = null;
@@ -561,8 +585,8 @@ public class DTGImp implements DTG {
 			}
 		}
 
-		private int computeCost(DTGTransition t, Hashtable<String, String> state, 
-				HashMap<String, ArrayList<String>> newValues, int threadIndex) {
+		private int computeCost(DTGTransition t, Hashtable<String, String> state,
+								HashMap<String, ArrayList<String>> newValues, int threadIndex) {
 			int res = 0;
 			for (GroundedCond c: t.getCommonPreconditions()) {
 				int bestCost;
@@ -587,8 +611,8 @@ public class DTGImp implements DTG {
 			return res;
 		}
 
-		private void computeShortestPath(int initValue, int endValue, HashMap<String,String> state, 
-				HashMap<String, ArrayList<String>> newValues, int threadIndex) {
+		private void computeShortestPath(int initValue, int endValue, HashMap<String, String> state,
+										 HashMap<String, ArrayList<String>> newValues, int threadIndex) {
 			searchNodes = 0;
 			Hashtable<String,String> s = new Hashtable<String, String>();
 			boolean visited[] = new boolean[values.length];
@@ -599,13 +623,13 @@ public class DTGImp implements DTG {
 				if (state != null) s.putAll(state);
 				p.clear();
 				p.add(values[initValue]);
-				computeShortestPath(t, endValue, s, newValues, p, visited, 0, threadIndex);	
+				computeShortestPath(t, endValue, s, newValues, p, visited, 0, threadIndex);
 			}
 		}
 
-		private void computeShortestPath(Transition t, int endValue, Hashtable<String, String> state, 
-				HashMap<String, ArrayList<String>> newValues, ArrayList<String> p, boolean[] visited, 
-				int currentCost, int threadIndex) {
+		private void computeShortestPath(Transition t, int endValue, Hashtable<String, String> state,
+										 HashMap<String, ArrayList<String>> newValues, ArrayList<String> p, boolean[] visited,
+										 int currentCost, int threadIndex) {
 			currentCost++;
 			if (currentCost >= cost) return;
 			currentCost += computeCost(t, state, newValues, threadIndex);	// Compute the cost of the transition preconditions
@@ -626,7 +650,7 @@ public class DTGImp implements DTG {
 			if (++searchNodes < MAX_SEARCH_NODES)
 			for (Transition next: transitions.get(t.toValue)) {
 				if (!visited[next.toValue])
-					computeShortestPath(next, endValue, state, newValues, p, visited, 
+					computeShortestPath(next, endValue, state, newValues, p, visited,
 							currentCost, threadIndex);
 			}
 			visited[t.toValue] = false;									// Restore previous values
@@ -647,42 +671,18 @@ public class DTGImp implements DTG {
 			return path;
 		}
 	}
-
-	@Override
-	public void clearCache(int threadIndex) {
-		getShortestPathTable(threadIndex).clear();
-		getDistanceTable(threadIndex).clear();
-	}
-	
-	private static class TransitionMemo {
-		String fromValue;
-		String toValue;
-		public TransitionMemo(String initialValue, String endValue) {
-			this.fromValue = initialValue;
-			this.toValue = endValue;
-		}
-		public boolean equals(Object x) {
-			TransitionMemo tm = (TransitionMemo) x;
-			return tm.fromValue.equals(fromValue) && tm.toValue.equals(toValue);
-		}
-		public String toString() {
-			return fromValue + " " + toValue;
-		}
-		public int hashCode() {
-			return (fromValue + " " + toValue).hashCode(); 
-		}
-	}
 	
 	/*************************************************/
 	/*               D I J S K T R A                 */
+
 	/*************************************************/
 	
 	private class Dijkstra {
 		private static final int INFINITE = (Integer.MAX_VALUE)/3;
-		private int initialValue;
 		int minCost[];
 		int minPath[];
 		String agent[];
+		private int initialValue;
 		
 		public Dijkstra(Integer vIndex) {
 			minCost = new int[values.length];

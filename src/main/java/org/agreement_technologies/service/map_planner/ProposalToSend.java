@@ -1,20 +1,11 @@
 package org.agreement_technologies.service.map_planner;
 
+import org.agreement_technologies.common.map_planner.*;
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.BitSet;
-
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
-import org.agreement_technologies.common.map_planner.CausalLink;
-import org.agreement_technologies.common.map_planner.Condition;
-import org.agreement_technologies.common.map_planner.OpenCondition;
-import org.agreement_technologies.common.map_planner.Ordering;
-import org.agreement_technologies.common.map_planner.PlannerFactory;
-import org.agreement_technologies.common.map_planner.Step;
 
 /**
  * Serializable class to send/receive plan proposals to/from other agents
@@ -62,26 +53,63 @@ public class ProposalToSend implements Serializable {
 	public boolean isRepeated() {
 		return repeatedState;
 	}
-	
+
+	public Step getStep(int stepIndex, PlannerFactoryImp configuration) {
+		return step.toStep(configuration);
+	}
+
+	public ArrayList<Ordering> getOrderings(PlannerFactoryImp configuration) {
+		ArrayList<Ordering> o = new ArrayList<Ordering>(orderings.size());
+		for (POrdering po : orderings)
+			o.add(po.toOrdering(configuration));
+		return o;
+	}
+
+	public CausalLink[] getCausalLinks(PlannerFactoryImp configuration,
+									   POPIncrementalPlan basePlan, Step newStep, ArrayList<Ordering> orderings) {
+		ArrayList<CausalLink> acl = new ArrayList<CausalLink>();
+		CausalLink cl;
+		for (PCausalLink pcl : causalLinks)
+			if (pcl != null) {
+				cl = pcl.toCausalLink(configuration, basePlan, newStep);
+				if (cl != null) acl.add(cl);
+				else {    // Add as ordering
+					orderings.add(configuration.createOrdering(pcl.step1, pcl.step2));
+				}
+			}
+		return acl.toArray(new CausalLink[acl.size()]);
+	}
+
+	public boolean isSolution() {
+		return isSolution;
+	}
+
+	public int getH() {
+		return h;
+	}
+
+	public int getHLand() {
+		return hLand;
+	}
+
 	public static class PGroundedCond implements Serializable {
 		private static final long serialVersionUID = -425234291857601218L;
 		private int var;
 		private int value;
-		private int condition;
-		
+		private ConditionType condition;
+
 		public PGroundedCond(Condition cond) {
 			var = cond.getVarCode();
 			value = cond.getValueCode();
-			condition = cond.getType();
+			condition = cond.getConditionType();
 		}
-		
+
 		public Condition toCondition() {
 			return new POPCondition(condition, var, value);
 		}
-		
+
 		public String toString() {
-			String res = condition == GroundedCond.EQUAL ? "=" : "<>";
-			return var  + res + value;
+			return "" + var + condition + value;
 		}
 
 		/*
@@ -110,12 +138,12 @@ public class ProposalToSend implements Serializable {
 			return gEff;
 		}*/
 	}
-	
+
 	public static class POpenCondition implements Serializable {
 		private static final long serialVersionUID = 7396924233555014626L;
 		private int stepIndex;
 		private PGroundedCond cond;
-		
+
 		public POpenCondition(OpenCondition oc) {
 			stepIndex = oc.getStep().getIndex();
 			cond = new PGroundedCond(oc.getCondition());
@@ -125,16 +153,21 @@ public class ProposalToSend implements Serializable {
 			return "[" + stepIndex + "] " + cond;
 		}
 	}
-	
+
 	public static class PCausalLink implements Serializable {
 		private static final long serialVersionUID = -7424617979375788553L;
 		private int step1, step2;
 		private PGroundedCond cond;
-		
+
 		public PCausalLink(CausalLink c) {
 			step1 = c.getIndex1();
 			step2 = c.getIndex2();
 			cond = new PGroundedCond(c.getCondition());
+		}
+
+		private static Step findStep(int s, POPIncrementalPlan basePlan) {
+			if (basePlan.getStep().getIndex() == s) return basePlan.getStep();
+			return findStep(s, basePlan.getFather());
 		}
 
 		public Ordering toOrdering(PlannerFactory pf) {
@@ -148,31 +181,26 @@ public class ProposalToSend implements Serializable {
 			Step s2 = newStep != null ? newStep : basePlan.getFinalStep();
 			return pf.createCausalLink(gc, s1, s2);
 		}
-
-		private static Step findStep(int s, POPIncrementalPlan basePlan) {
-			if (basePlan.getStep().getIndex() == s) return basePlan.getStep();
-			return findStep(s, basePlan.getFather());
-		}
 	}
-	
+
 	public static class POrdering implements Serializable {
 		private static final long serialVersionUID = 4213546490197217271L;
 		private int step1, step2;
-		
+
 		public POrdering(CausalLink c) {
 			step1 = c.getIndex1();
-			step2 = c.getIndex2(); 
-		}
-
-		public Ordering toOrdering(PlannerFactory pf) {
-			return pf.createOrdering(step1, step2);
+			step2 = c.getIndex2();
 		}
 
 		public POrdering(Ordering o) {
 			step1 = o.getIndex1();
 			step2 = o.getIndex2();
 		}
-		
+
+		public Ordering toOrdering(PlannerFactory pf) {
+			return pf.createOrdering(step1, step2);
+		}
+
 		public boolean equals(Object x) {
 			POrdering po = (POrdering) x;
 			return step1 == po.step1 && step2 == po.step2;
@@ -181,11 +209,11 @@ public class ProposalToSend implements Serializable {
 	
 	public static class PStep implements Serializable {
 		private static final long serialVersionUID = 2695531841107912873L;
+		PGroundedCond prec[], eff[];
 		private int index;
 		private String agent;
 		private String actionName;
-		PGroundedCond prec[], eff[];
-		
+
 		public PStep(Step step) {
 			if (step != null) {
 				index = step.getIndex();
@@ -199,7 +227,7 @@ public class ProposalToSend implements Serializable {
 					aEffs.add(new PGroundedCond(eff));
 				prec = aPrecs.toArray(new PGroundedCond[aPrecs.size()]);
 				eff = aEffs.toArray(new PGroundedCond[aEffs.size()]);
-			} else 
+			} else
 				index = -1;
 		}
 
@@ -213,47 +241,9 @@ public class ProposalToSend implements Serializable {
 			for (int i = 0; i < eff.length; i++) {
 				sEff.add(eff[i].toCondition());
 			}
-			return pf.createStep(index, agent, actionName, 
+			return pf.createStep(index, agent, actionName,
 					sPrec.toArray(new Condition[sPrec.size()]),
 					sEff.toArray(new Condition[sEff.size()]));
 		}
-	}
-
-	public Step getStep(int stepIndex, PlannerFactoryImp configuration) {
-		return step.toStep(configuration);
-	}
-
-	public ArrayList<Ordering> getOrderings(PlannerFactoryImp configuration) {
-		ArrayList<Ordering> o = new ArrayList<Ordering>(orderings.size());
-		for (POrdering po: orderings)
-			o.add(po.toOrdering(configuration));
-		return o;
-	}
-
-	public CausalLink[] getCausalLinks(PlannerFactoryImp configuration,
-			POPIncrementalPlan basePlan, Step newStep, ArrayList<Ordering> orderings) {
-		ArrayList<CausalLink> acl = new ArrayList<CausalLink>();
-		CausalLink cl;
-		for (PCausalLink pcl: causalLinks)
-			if (pcl != null) {
-				cl = pcl.toCausalLink(configuration, basePlan, newStep);
-				if (cl != null) acl.add(cl);
-				else {	// Add as ordering
-					orderings.add(configuration.createOrdering(pcl.step1, pcl.step2));
-				}
-			}
-		return acl.toArray(new CausalLink[acl.size()]);
-	}
-
-	public boolean isSolution() {
-		return isSolution;
-	}
-
-	public int getH() {
-		return h;
-	}
-	
-	public int getHLand() {
-		return hLand;
 	}
 }

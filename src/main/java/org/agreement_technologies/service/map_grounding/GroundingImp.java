@@ -1,28 +1,15 @@
 package org.agreement_technologies.service.map_grounding;
 
-import java.util.*;
-
 import org.agreement_technologies.common.map_communication.AgentCommunication;
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedNumericEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
-import org.agreement_technologies.common.map_grounding.Grounding;
-import org.agreement_technologies.common.map_grounding.ReachedValue;
-import org.agreement_technologies.common.map_parser.Condition;
-import org.agreement_technologies.common.map_parser.Congestion;
-import org.agreement_technologies.common.map_parser.CongestionFluent;
-import org.agreement_technologies.common.map_parser.CongestionPenalty;
-import org.agreement_technologies.common.map_parser.CongestionUsage;
-import org.agreement_technologies.common.map_parser.Function;
-import org.agreement_technologies.common.map_parser.NumericEffect;
-import org.agreement_technologies.common.map_parser.NumericExpression;
-import org.agreement_technologies.common.map_parser.Operator;
-import org.agreement_technologies.common.map_parser.Parameter;
-import org.agreement_technologies.common.map_parser.Task;
+import org.agreement_technologies.common.map_grounding.*;
+import org.agreement_technologies.common.map_parser.*;
 import org.agreement_technologies.service.map_grounding.GroundedTaskImp.ActionCondition;
 import org.agreement_technologies.service.map_grounding.GroundedTaskImp.GroundedValue;
 import org.agreement_technologies.service.map_grounding.GroundedTaskImp.GroundedVarImp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 /**
  * Planning task grounding process
@@ -31,6 +18,8 @@ import org.agreement_technologies.service.map_grounding.GroundedTaskImp.Grounded
  * @since April 2011
  */
 public class GroundingImp implements Grounding {
+    private static final Logger logger = LoggerFactory.getLogger(GroundingImp.class);
+
 
     private Hashtable<String, Boolean> staticFunctions;     // Static functions
     private GroundedTaskImp gTask;                          // Grounded planning task
@@ -333,6 +322,8 @@ public class GroundingImp implements Grounding {
      * @param agentName Name of this agent
      */
     protected GroundedTask ground(Task task, String agentName, boolean negationByFailure) {
+        logger.debug("Start grounding for : agentName {}", agentName);
+
         currentLevel = 0;
         currentTrueValueIndex = 0;
         currentFalseValueIndex = 0;
@@ -363,7 +354,7 @@ public class GroundingImp implements Grounding {
             newTrueValues = auxTrueValues;
             currentLevel++;
         }
-        
+        logger.debug("Operator grounding {}", (Object) gOps);
         groundCongestion(task);
         return gTask;
     }
@@ -780,6 +771,8 @@ public class GroundingImp implements Grounding {
                 }
             }
         }
+
+        logger.debug("newTrueValues {}", newTrueValues);
     }
 
     /**
@@ -790,11 +783,15 @@ public class GroundingImp implements Grounding {
     @SuppressWarnings("unchecked")
     private void initOperators(Task task) {
         int numFnc = gTask.functions.size();
+
+        logger.debug("function number {} ", numFnc);
         opRequireFunction = new ArrayList[numFnc];
         for (int i = 0; i < numFnc; i++) {
             opRequireFunction[i] = new ArrayList<OpGrounding>();
         }
         Operator[] ops = task.getOperators();
+        logger.debug("operators {} ", (Object) ops);
+
         Operator[] b = task.getBeliefs();
         gOps = new OpGrounding[ops.length + b.length];
         for (int i = 0; i < ops.length; i++) {
@@ -803,6 +800,8 @@ public class GroundingImp implements Grounding {
         for (int i = 0; i < b.length; i++) {
             gOps[i + ops.length] = new OpGrounding(b[i], i, true);
         }
+
+        logger.debug("opRequireFunction {} ", (Object) opRequireFunction);
     }
 
     private void groundActionNumericEffect(GroundedTaskImp.ActionImp a, OpGrounding op) {
@@ -1343,6 +1342,15 @@ public class GroundingImp implements Grounding {
         // Hash code
         public int hashCode() {
             return varIndex * 131071 + valueIndex;
+        }
+
+        @Override
+        public String toString() {
+            return "ProgrammedValue{" +
+                    "index=" + index +
+                    ", var=" + GroundingImp.this.gTask.vars.get(varIndex) +
+                    ", value=" + GroundingImp.this.gTask.values.get(valueIndex) +
+                    '}';
         }
     }
 }

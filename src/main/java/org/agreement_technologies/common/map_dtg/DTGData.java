@@ -1,11 +1,12 @@
 package org.agreement_technologies.common.map_dtg;
 
-import java.util.ArrayList;
-
 import org.agreement_technologies.common.map_grounding.GroundedCond;
 import org.agreement_technologies.common.map_grounding.GroundedEff;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_grounding.GroundedVar;
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+
+import java.util.ArrayList;
 
 public class DTGData implements java.io.Serializable {
 	private static final long serialVersionUID = 6011631219080464901L;
@@ -13,14 +14,6 @@ public class DTGData implements java.io.Serializable {
 	private String fromValue, toValue;
 	private ArrayList<DTGCondition> commonPrecs;
 	private ArrayList<DTGEffect> commonEffs;
-	
-	public static boolean shareable(DTGTransition t, String ag) {
-		GroundedVar v = t.getVar();
-		if (!v.shareable(ag)) return false;
-		if (!v.shareable(t.getStartValue(), ag) && !v.shareable(t.getFinalValue(), ag))
-			return false;
-		return true;
-	}
 	
 	public DTGData(DTGTransition t, String ag) {
 		GroundedVar v = t.getVar();
@@ -35,6 +28,14 @@ public class DTGData implements java.io.Serializable {
 		for (GroundedEff eff: t.getCommonEffects())
 			if (eff.getVar().shareable(eff.getValue(), ag))
 				commonEffs.add(new DTGEffect(eff));
+	}
+
+	public static boolean shareable(DTGTransition t, String ag) {
+		GroundedVar v = t.getVar();
+		if (!v.shareable(ag)) return false;
+		if (!v.shareable(t.getStartValue(), ag) && !v.shareable(t.getFinalValue(), ag))
+			return false;
+		return true;
 	}
 	
 	public String toString() {
@@ -97,7 +98,7 @@ public class DTGData implements java.io.Serializable {
 	
 	private static class DTGCondition implements java.io.Serializable {
 		private static final long serialVersionUID = -8411329280671918342L;
-		private int condition;
+		private ConditionType condition;
 		private String varName;
 		private String value;
 		
@@ -108,8 +109,7 @@ public class DTGData implements java.io.Serializable {
 		}
 		
 		public String toString() {
-			return "(" + varName + (condition == GroundedCond.EQUAL ? "=" : "<>") +
-				value + ")";
+			return "(" + varName + condition + value + ")";
 		}
 	}
 	

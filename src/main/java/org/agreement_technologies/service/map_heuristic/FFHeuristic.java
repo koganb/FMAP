@@ -1,19 +1,16 @@
 package org.agreement_technologies.service.map_heuristic;
 
+import org.agreement_technologies.common.map_communication.AgentCommunication;
+import org.agreement_technologies.common.map_grounding.*;
+import org.agreement_technologies.common.map_heuristic.HPlan;
+import org.agreement_technologies.common.map_heuristic.Heuristic;
+import org.agreement_technologies.common.map_planner.Condition.ConditionType;
+import org.agreement_technologies.common.map_planner.PlannerFactory;
+
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.PriorityQueue;
-
-import org.agreement_technologies.common.map_communication.AgentCommunication;
-import org.agreement_technologies.common.map_grounding.Action;
-import org.agreement_technologies.common.map_grounding.GroundedCond;
-import org.agreement_technologies.common.map_grounding.GroundedEff;
-import org.agreement_technologies.common.map_grounding.GroundedTask;
-import org.agreement_technologies.common.map_grounding.GroundedVar;
-import org.agreement_technologies.common.map_heuristic.HPlan;
-import org.agreement_technologies.common.map_heuristic.Heuristic;
-import org.agreement_technologies.common.map_planner.PlannerFactory;
 
 public class FFHeuristic implements Heuristic {
 	private static final int PENALTY = 1000;
@@ -38,7 +35,7 @@ public class FFHeuristic implements Heuristic {
 			for (GroundedVar v: gTask.getVars())
 				if (v.toString().equals(g.varName)) { var = v; break; }
 			if (var != null)
-				goals.add(gTask.createGroundedCondition(GroundedCond.EQUAL, var, g.value));
+				goals.add(gTask.createGroundedCondition(ConditionType.EQUAL, var, g.value));
 		}
 		productors = new HashMap<String, ArrayList<Action>>();
 		requirers = new HashMap<String, ArrayList<Action>>();
