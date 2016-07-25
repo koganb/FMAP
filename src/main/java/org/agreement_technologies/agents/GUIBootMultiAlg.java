@@ -1,21 +1,29 @@
 package org.agreement_technologies.agents;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.Arrays;
-import java.util.Scanner;
-import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_heuristic.HeuristicFactory;
 import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
 import org.agreement_technologies.common.map_parser.AgentList;
+import org.agreement_technologies.common.map_parser.PDDLParser;
+import org.agreement_technologies.common.map_parser.Task;
+import org.agreement_technologies.common.map_planner.Plan;
 import org.agreement_technologies.common.map_planner.PlannerFactory;
+import org.agreement_technologies.service.map_parser.AgentListImp;
+import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
 import org.agreement_technologies.service.map_parser.ParserImp;
+import org.agreement_technologies.service.map_planner.utils.LinearlizationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * @author Oscar
@@ -23,18 +31,45 @@ import org.agreement_technologies.service.map_parser.ParserImp;
 public class GUIBootMultiAlg extends JFrame {
 
     private static final long serialVersionUID = -5039304283931395812L;
-    //private static final String[] searchMethods = {"Speed", "Balanced", "Quality"};
-
-    public enum AlgorithmType {FMAP, MAFS};
-
-
-
     private static final String[] heuristics = {"Breadth", "FF", "DTG", "Landmarks", "Land.Inc."};
     private static final String[] negotiation = {"Cooperative", "Borda voting", "Runoff voting"};
-    private String startDir;	// Start folder for selecting files
+    private static Logger logger = LoggerFactory.getLogger(LinearlizationUtils.class);
+    //private static final String[] searchMethods = {"Speed", "Balanced", "Quality"};
+    private final Object monitor = new Object();
+    private final Map<Integer, Collection<Plan>> solutionMap = new ConcurrentHashMap<>();
+    private String startDir;    // Start folder for selecting files
     private String qpidHost;
     private int timeout;
-
+    // Variables declaration
+    private javax.swing.JButton jButtonAddAgent;
+    private javax.swing.JButton jButtonClearAgents;
+    private javax.swing.JButton jButtonLoadConfig;
+    private javax.swing.JButton jButtonLoadDomain;
+    private javax.swing.JButton jButtonLoadProblem;
+    private javax.swing.JButton jButtonSaveConfig;
+    private javax.swing.JButton jButtonStart;
+    //private javax.swing.JButton jButtonBatch;
+    private javax.swing.JLabel jLabelAlgorithmType;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    @SuppressWarnings("rawtypes")
+    private javax.swing.JList jListAgents;
+    private javax.swing.JPanel jPanel1;
+    private javax.swing.JScrollPane jScrollPane1;
+    private JComboBox jComboBoxAlgorithmType;
+    private javax.swing.JTextField jTextFieldAgent;
+    private javax.swing.JTextField jTextFieldDomain;
+    private javax.swing.JTextField jTextFieldProblem;
+    @SuppressWarnings("rawtypes")
+    private javax.swing.JComboBox heuristicType;
+    private javax.swing.JComboBox negotiationType;
+    //private javax.swing.JComboBox searchType;
+    private javax.swing.JCheckBox sameObjects;
+    private javax.swing.JCheckBox trace;
+    private javax.swing.JCheckBox anytime;
+    private JTextField jTextTimeout;
+    private JTextField jTextQpid;
     /**
      * Constructs the GUI for launching agents
      */
@@ -107,7 +142,7 @@ public class GUIBootMultiAlg extends JFrame {
         JPanel algorithmPanel = new JPanel();
         algorithmPanel.setLayout(null);
         getContentPane().add(algorithmPanel);
-        algorithmPanel.setBounds(0,0, 570, 25);
+        algorithmPanel.setBounds(0, 0, 570, 25);
 
         jLabelAlgorithmType.setBounds(20, 11, 90, 14);
         jLabelAlgorithmType.setText("Algorithm:");
@@ -125,7 +160,7 @@ public class GUIBootMultiAlg extends JFrame {
         JPanel problemDataPanel = new JPanel();
         problemDataPanel.setLayout(null);
         getContentPane().add(problemDataPanel);
-        problemDataPanel.setBounds(0,20, 570, 130);
+        problemDataPanel.setBounds(0, 20, 570, 130);
 
 
         jLabel1.setText("Agent's name:");
@@ -445,103 +480,155 @@ public class GUIBootMultiAlg extends JFrame {
         qpidHost = jTextQpid.getText();
         saveStartDir();
         javax.swing.DefaultListModel model = (javax.swing.DefaultListModel) jListAgents.getModel();
+        if (model.size() == 0) {
+            logger.error("No agent defined");
+            javax.swing.JOptionPane.showMessageDialog(this,
+                    "No agents defined",
+                    "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+
         java.awt.Dimension screenSize = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+        int x = 0, y = 0;
+        int h = heuristicType.getSelectedIndex();
+        int n = negotiationType.getSelectedIndex();
+
+        AlgorithmType selectedAlg = jComboBoxAlgorithmType.getSelectedIndex() == -1 ?
+                AlgorithmType.FMAP :
+                AlgorithmType.values()[jComboBoxAlgorithmType.getSelectedIndex()];
+
+        int algorithmSelectedIndex = jComboBoxAlgorithmType.getSelectedIndex();
+        timeout = -1;
+        boolean isAnytime = anytime.isSelected();
         try {
-            int x = 0, y = 0;
-            int h = heuristicType.getSelectedIndex();
-            int n = negotiationType.getSelectedIndex();
-
-            AlgorithmType selectedAlg = jComboBoxAlgorithmType.getSelectedIndex() == -1 ?
-                    AlgorithmType.FMAP :
-                    AlgorithmType.values() [ jComboBoxAlgorithmType.getSelectedIndex()];
-
-            int algorithmSelectedIndex = jComboBoxAlgorithmType.getSelectedIndex();
-            timeout = -1;
-            boolean isAnytime = anytime.isSelected();
-            try {
-                if (isAnytime) {
-                    timeout = Integer.parseInt(jTextTimeout.getText());
-                }
-            } catch (NumberFormatException e) {
-                javax.swing.JOptionPane.showMessageDialog(this,
-                        "Timeout is not a number",
-                        "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
-                return;
+            if (isAnytime) {
+                timeout = Integer.parseInt(jTextTimeout.getText());
             }
-            int searchPerformance = 1; // Balanced: searchType.getSelectedIndex();
-            if (h == HeuristicFactory.LAND_DTG_NORM || h == HeuristicFactory.LAND_DTG_INC) {
-                searchPerformance = PlannerFactory.SEARCH_LANDMARKS;
-            }
-            int sameObjects = this.sameObjects.isSelected() ?
-                    GroundedTask.SAME_OBJECTS_REP_PARAMS + GroundedTask.SAME_OBJECTS_PREC_EQ_EFF :
-                    GroundedTask.SAME_OBJECTS_DISABLED;
-            AgentList agList = new ParserImp().createEmptyAgentList();
-            for (int i = 0; i < model.size(); i++)
-                agList.addAgent(((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase(), "127.0.0.1");
-            for (int i = 0; i < model.size(); i++) {
-                GUIBootMultiAlg.Agent a = (GUIBootMultiAlg.Agent) model.getElementAt(i);
-                PlanningAgent ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
-                        agList, false, sameObjects, trace.isSelected(), h, searchPerformance, n,
-                        isAnytime, timeout, selectedAlg);
-                GUIPlanningAgent gui = new GUIPlanningAgent(ag);
-                gui.setLocation(x, y);
-                y += gui.getHeight();
-                if (y + gui.getHeight() > screenSize.height) {
-                    x += gui.getWidth();
-                    y = 0;
-                }
-                MAPboot.planningAgents.add(ag);
-            }
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             javax.swing.JOptionPane.showMessageDialog(this,
-                    "Could not create the planning agents",
+                    "Timeout is not a number",
                     "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
             return;
         }
+        int searchPerformance = 1; // Balanced: searchType.getSelectedIndex();
+        if (h == HeuristicFactory.LAND_DTG_NORM || h == HeuristicFactory.LAND_DTG_INC) {
+            searchPerformance = PlannerFactory.SEARCH_LANDMARKS;
+        }
+        int sameObjects = this.sameObjects.isSelected() ?
+                GroundedTask.SAME_OBJECTS_REP_PARAMS + GroundedTask.SAME_OBJECTS_PREC_EQ_EFF :
+                GroundedTask.SAME_OBJECTS_DISABLED;
+
+        AgentList agList = new ParserImp().createEmptyAgentList();
+        for (int i = 0; i < model.size(); i++) {
+            agList.addAgent(((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase(), "127.0.0.1");
+        }
+        //parse first agent problem to find global goals
+        final Task planningTask;
         try {
-            for (PlanningAgent ag : MAPboot.planningAgents) {
-                ag.start();
-            }
+            Agent firstAgent = (Agent) model.getElementAt(0);
+            boolean isMAPDDL = new ParserImp().isMAPDDL(firstAgent.domain);
+            PDDLParser parser = isMAPDDL ? new MAPDDLParserImp() : new ParserImp();
+            planningTask = parser.parseDomain(firstAgent.domain);
+            parser.parseProblem(firstAgent.problem, planningTask, agList, firstAgent.name);
         } catch (Exception e) {
-            javax.swing.JOptionPane.showMessageDialog(this,
-                    "Could not start the planning agents",
-                    "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+            logger.error(e.getMessage(), e);
             return;
         }
+
+
+//            agentIncludeArr.add(new boolean[]{true, true, true, true, false});
+//            agentIncludeArr.add(new boolean[]{true, true, true, false, true});
+
+
+        int finalSearchPerformance = searchPerformance;
+
+        IntStream.range(0, planningTask.getAllGoals().length).
+                forEach(goalIndex -> {
+                    solutionMap.put(goalIndex, new ConcurrentLinkedQueue<>());
+                });
+
+        IntStream.range(1, (int) Math.pow(2, model.size())).
+                mapToObj(i -> String.format("%0" + model.size() + "d",
+                        Integer.parseInt(Integer.toBinaryString(i))).split("")).
+                map(i -> Arrays.stream(i).map(j -> j.equals("1"))).
+                forEach(ar -> {
+                    List<Boolean> agentInclude = ar.collect(Collectors.toList());
+                    logger.info("agentInclude {}", agentInclude);
+
+                    IntStream.range(0, planningTask.getAllGoals().length).
+                            forEach(goalIndex -> {
+
+                                MAPboot.planningAgents = new ArrayList<>();
+
+                                AgentList agentList = new AgentListImp();
+                                IntStream.range(0, model.size())
+                                        .filter(agentInclude::get)
+                                        .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
+                                        .forEach(s -> agentList.addAgent(s, "127.0.0.1"));
+
+                                Collection<String> removeAgents = IntStream.range(0, model.size())
+                                        .filter(i -> !agentInclude.get(i))
+                                        .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
+                                        .collect(Collectors.toSet());
+
+                                for (int i = 0; i < model.size(); i++) {
+
+                                    if (agentInclude.get(i)) {
+
+                                        GUIBootMultiAlg.Agent a = (GUIBootMultiAlg.Agent) model.getElementAt(i);
+                                        PlanningAgent ag = null;
+                                        try {
+                                            ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
+                                                    agentList, false, sameObjects, trace.isSelected(), h, finalSearchPerformance, n,
+                                                    isAnytime, timeout, selectedAlg, goalIndex, monitor, removeAgents, solutionMap);
+                                        } catch (Exception e) {
+                                            logger.error(e.getMessage(), e);
+                                            return;
+                                        }
+//                GUIPlanningAgent gui = new GUIPlanningAgent(ag);
+//                gui.setLocation(x, y);
+//                y += gui.getHeight();
+//                if (y + gui.getHeight() > screenSize.height) {
+//                    x += gui.getWidth();
+//                    y = 0;
+//                }
+
+                                        MAPboot.planningAgents.add(ag);
+                                    }
+                                }
+
+                                for (PlanningAgent ag : MAPboot.planningAgents) {
+                                    ag.start();
+                                }
+
+
+                                synchronized (monitor) {
+                                    try {
+                                        monitor.wait();
+                                        Thread.sleep(1000);  //sleep one second to finish commumication
+                                    } catch (InterruptedException e) {
+                                        logger.info("Got interrupt on monitor");
+                                    }
+                                }
+
+
+                                //shutdown agents
+                                for (PlanningAgent ag : MAPboot.planningAgents) {
+                                    ag.shutdown();
+                                }
+
+                            });
+                });
+
+
         jButtonStart.setEnabled(false);
+
         setState(ICONIFIED);
+
     }
 
-    // Variables declaration
-    private javax.swing.JButton jButtonAddAgent;
-    private javax.swing.JButton jButtonClearAgents;
-    private javax.swing.JButton jButtonLoadConfig;
-    private javax.swing.JButton jButtonLoadDomain;
-    private javax.swing.JButton jButtonLoadProblem;
-    private javax.swing.JButton jButtonSaveConfig;
-    private javax.swing.JButton jButtonStart;
-    //private javax.swing.JButton jButtonBatch;
-    private javax.swing.JLabel jLabelAlgorithmType;
-    private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel3;
-    @SuppressWarnings("rawtypes")
-    private javax.swing.JList jListAgents;
-    private javax.swing.JPanel jPanel1;
-    private javax.swing.JScrollPane jScrollPane1;
-    private JComboBox jComboBoxAlgorithmType;
-    private javax.swing.JTextField jTextFieldAgent;
-    private javax.swing.JTextField jTextFieldDomain;
-    private javax.swing.JTextField jTextFieldProblem;
-    @SuppressWarnings("rawtypes")
-    private javax.swing.JComboBox heuristicType;
-    private javax.swing.JComboBox negotiationType;
-    //private javax.swing.JComboBox searchType;
-    private javax.swing.JCheckBox sameObjects;
-    private javax.swing.JCheckBox trace;
-    private javax.swing.JCheckBox anytime;
-    private JTextField jTextTimeout;
-    private JTextField jTextQpid;
+    public enum AlgorithmType {FMAP, MAFS}
 
     // Initial parameters for an agent
     private class Agent {
