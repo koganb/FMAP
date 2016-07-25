@@ -1,13 +1,14 @@
 package org.agreement_technologies.service.map_communication;
 
+import org.agreement_technologies.common.map_communication.AgentCommunication;
+import org.agreement_technologies.common.map_communication.Message;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import org.agreement_technologies.common.map_communication.AgentCommunication;
-import org.agreement_technologies.common.map_communication.Message;
 
 /**
  * @author Oscar
@@ -21,6 +22,16 @@ public class CommunicationServer extends Thread {
        server = new ServerSocket(AgentCommunication.BASE_PORT + agentIndex);
        this.comm = comm;
        this.numConnections = numConnections;
+    }
+
+    public void shutdown() {
+        if (!server.isClosed()) {
+            try {
+                server.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
     
     @Override

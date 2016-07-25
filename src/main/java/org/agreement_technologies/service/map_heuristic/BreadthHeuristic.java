@@ -1,12 +1,12 @@
 package org.agreement_technologies.service.map_heuristic;
 
-import java.util.ArrayList;
-import java.util.BitSet;
-
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_heuristic.HPlan;
 import org.agreement_technologies.common.map_heuristic.Heuristic;
+
+import java.util.ArrayList;
+import java.util.BitSet;
 
 public class BreadthHeuristic implements Heuristic {
 	private int numPreferences;
@@ -17,7 +17,7 @@ public class BreadthHeuristic implements Heuristic {
 	
 	@Override
 	public void evaluatePlan(HPlan p, int threadIndex) {
-		p.setH(p.numSteps() - 2, 0);
+		p.setH(p.getNumSteps() - 2, 0);
 		for (int i = 0; i < numPreferences; i++)
 			p.setHPriv(0, i);
 	}

@@ -1,9 +1,10 @@
 package org.agreement_technologies.service.map_planner;
 
-import java.util.ArrayList;
 import org.agreement_technologies.common.map_planner.CausalLink;
 import org.agreement_technologies.common.map_planner.Ordering;
 import org.agreement_technologies.common.map_planner.Step;
+
+import java.util.ArrayList;
 
 public class Memoization {
 	private static final int MAP_SIZE = 65537; 
@@ -16,32 +17,11 @@ public class Memoization {
 		size = 0;
 	}
 	
-	public void add(POPIncrementalPlan p) {
-		int code = getPlanCode(p);
-		int pos = position(code); 
-		entrySet[pos] = new HashEntry<Integer,POPIncrementalPlan>(code, p, entrySet[pos]);
-	    size++;
-	}
-	
-	public IPlan search(POPIncrementalPlan p) {
-		int code = getPlanCode(p);
-		int pos = position(code);
-		HashEntry<Integer, POPIncrementalPlan> e = entrySet[pos];
-		while (e != null) {
-			if (e.key == code) {
-				if (equalPlans(p, e.value))
-					return e.value;
-			}
-			e = e.next;
-		}
-		return null;	// Not found
-	}
-	
 	// Plan comparison
 	@SuppressWarnings("unchecked")
 	private static boolean equalPlans(POPIncrementalPlan p1, POPIncrementalPlan p2) {
-		int numSteps = p1.numSteps();
-		if (numSteps != p2.numSteps()) return false;
+		int numSteps = p1.getNumSteps();
+		if (numSteps != p2.getNumSteps()) return false;
 		ArrayList<Integer> nextSteps1[] = new ArrayList[numSteps];
 		ArrayList<Integer> nextSteps2[] = new ArrayList[numSteps];
 		for (int i = 0; i < numSteps; i++) {
@@ -76,7 +56,7 @@ public class Memoization {
 		return checkStep(0, 0, stepNames1, stepNames2, nextSteps1, nextSteps2, checked);
 	}
 
-	private static boolean checkStep(int s1, int s2, String[] stepNames1, String[] stepNames2, 
+	private static boolean checkStep(int s1, int s2, String[] stepNames1, String[] stepNames2,
 			ArrayList<Integer>[] nextSteps1, ArrayList<Integer>[] nextSteps2, boolean checked[]) {
 		if (checked[s1]) return true;
 		checked[s1] = true;
@@ -87,11 +67,32 @@ public class Memoization {
 					next2 = aux;
 					break;
 				}
-			if (next2 == -1 || !checkStep(next1, next2, stepNames1, stepNames2, nextSteps1, 
+			if (next2 == -1 || !checkStep(next1, next2, stepNames1, stepNames2, nextSteps1,
 				nextSteps2, checked))
 				return false;
 		}
 		return true;
+	}
+
+	public void add(POPIncrementalPlan p) {
+		int code = getPlanCode(p);
+		int pos = position(code);
+		entrySet[pos] = new HashEntry<Integer, POPIncrementalPlan>(code, p, entrySet[pos]);
+		size++;
+	}
+
+	public IPlan search(POPIncrementalPlan p) {
+		int code = getPlanCode(p);
+		int pos = position(code);
+		HashEntry<Integer, POPIncrementalPlan> e = entrySet[pos];
+		while (e != null) {
+			if (e.key == code) {
+				if (equalPlans(p, e.value))
+					return e.value;
+			}
+			e = e.next;
+		}
+		return null;    // Not found
 	}
 
 	private int position(int code) {

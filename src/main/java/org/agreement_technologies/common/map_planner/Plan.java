@@ -19,19 +19,28 @@ public interface Plan {
     ArrayList<Ordering> getOrderingsArray();            
     Step getInitialStep();
     Step getFinalStep();
-    boolean isSolution();    
-    int numSteps();
+    boolean isSolution();
+
+    int getNumSteps();
     int countSteps();
     String getName();    
     boolean isRoot();
     int getG();
-    int getH();
-    double getMetric();
-    int getHpriv(int prefIndex);
-    int getHLan();
-    void setH(int h, int hLan);
-    void setHPriv(int h, int prefIndex);
+
     void setG(int g);
+
+    int getH();
+
+    double getMetric();
+
+    int getHpriv(int prefIndex);
+
+    int getHLan();
+
+    void setH(int h, int hLan);
+
+    void setHPriv(int h, int prefIndex);
+
     Plan getParentPlan();
     void printPlan(int output, String myagent, ArrayList<String> agents);
 }

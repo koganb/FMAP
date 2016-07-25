@@ -29,7 +29,7 @@ import static org.agreement_technologies.Log4jMarkers.CAUSAL_LINK_MARKER;
  * @author Alex
  */
 public class PlannerFactoryImp implements PlannerFactory {
-    private Logger logger = LoggerFactory.getLogger(PlannerFactoryImp.class);
+    private static Logger logger = LoggerFactory.getLogger(PlannerFactoryImp.class);
 
     private ArrayList<OpenCondition> openConditions;
     private ArrayList<POPPrecEff> goals;

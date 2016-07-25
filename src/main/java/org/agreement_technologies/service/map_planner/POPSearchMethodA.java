@@ -1,10 +1,10 @@
 package org.agreement_technologies.service.map_planner;
 
+import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
+
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Hashtable;
 import java.util.PriorityQueue;
-import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
 
 /**
  * Manages the search tree for an A* search.
@@ -147,8 +147,8 @@ class POPSearchMethodA implements POPSearchMethod {
     }
 
     public void addPlan(IPlan plan) {
-    	plan.setG(plan.numSteps());
-    	//memoization.add((POPIncrementalPlan)plan);
+        plan.setG(plan.getNumSteps());
+        //memoization.add((POPIncrementalPlan)plan);
         addToQueue(plan);
     }
     

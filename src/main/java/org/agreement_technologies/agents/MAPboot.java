@@ -1,14 +1,16 @@
 package org.agreement_technologies.agents;
 
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_heuristic.HeuristicFactory;
 import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
 import org.agreement_technologies.common.map_parser.AgentList;
 import org.agreement_technologies.common.map_parser.PDDLParser;
 import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * Multi-Agent Planning Process launcher Connects with Magentix platform and
@@ -17,19 +19,25 @@ import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
  * @author Oscar
  */
 public class MAPboot {
+    private static final Object monitor = new Object();
     public static ArrayList<PlanningAgent> planningAgents;
+    public static ArrayList<GUIPlanningAgent> guiPlanningAgents;
+
     /**
      * Main method
+     *
      * @param args Command line parameters
      */
     public static void main(String args[]) {
-        planningAgents = new ArrayList<>();
+        guiPlanningAgents = new ArrayList<>();
         Runtime rt = Runtime.getRuntime();
-        rt.addShutdownHook(new Thread() { 
+        rt.addShutdownHook(new Thread() {
             @Override
-            public void run() { 
-                shutdown(); 
-            }; 
+            public void run() {
+                shutdown();
+            }
+
+            ;
         });
         if (args.length == 0)   // Graphical interface
             launchGUI();
@@ -71,14 +79,14 @@ public class MAPboot {
                 }
                 int n = 0;
                 while (n < last) {
-                    PlanningAgent ag = new PlanningAgent(args[n].toLowerCase(), args[n+1], args[n+2], 
-                            agList, false, GroundedTask.SAME_OBJECTS_REP_PARAMS, false, 
+                    PlanningAgent ag = new PlanningAgent(args[n].toLowerCase(), args[n + 1], args[n + 2],
+                            agList, false, GroundedTask.SAME_OBJECTS_REP_PARAMS, false,
                             HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP);
+                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
                     planningAgents.add(ag);
                     n += 3;
                 }
-                for (PlanningAgent ag: planningAgents)
+                for (PlanningAgent ag : planningAgents)
                     ag.start();
                 ok = true;
             } catch (ParseException ex) {
@@ -108,7 +116,7 @@ public class MAPboot {
             PlanningAgent ag = new PlanningAgent(agentName.toLowerCase(), domainFile,
                     problemFile, agList, true, GroundedTask.SAME_OBJECTS_REP_PARAMS,
                     false, HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP );
+                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
             MAPboot.planningAgents.add(ag);
             ag.start();
         } catch (ParseException ex) {
@@ -119,10 +127,10 @@ public class MAPboot {
             System.out.println("Error  " + ex.getMessage());
         }
     }
-    
+
     public static void shutdown() {
         System.out.println("; Stopping...");
-        for (PlanningAgent ag: planningAgents)
+        for (PlanningAgent ag : planningAgents)
             ag.shutdown();
         planningAgents.clear();
     }

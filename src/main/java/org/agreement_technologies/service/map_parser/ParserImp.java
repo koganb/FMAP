@@ -1,17 +1,19 @@
 package org.agreement_technologies.service.map_parser;
 
+import org.agreement_technologies.common.map_parser.AgentList;
+import org.agreement_technologies.common.map_parser.PDDLParser;
+import org.agreement_technologies.common.map_parser.Task;
+import org.agreement_technologies.service.map_parser.SynAnalyzer.Symbol;
+import org.agreement_technologies.service.map_parser.TaskImp.MetricImp;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
-import org.agreement_technologies.common.map_parser.AgentList;
-import org.agreement_technologies.common.map_parser.PDDLParser;
-
-import org.agreement_technologies.common.map_parser.Task;
-import org.agreement_technologies.service.map_parser.SynAnalyzer.Symbol;
-import org.agreement_technologies.service.map_parser.TaskImp.MetricImp;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Implementation of the parser for the SAS MAP Language
@@ -956,7 +958,7 @@ public class ParserImp implements PDDLParser {
     private void parseSharedData(SynAnalyzer syn, TaskImp task) throws ParseException {
         SynAnalyzer.Token token;
         ArrayList<Object> data = new ArrayList<Object>();
-        ArrayList<String> agents = new ArrayList<String>();
+        Set<String> agents = new HashSet<String>();
         do {
             token = syn.readSym(Symbol.SS_OPEN_PAR, Symbol.SS_CLOSE_PAR);
             if (token.isSym(Symbol.SS_OPEN_PAR)) {
@@ -1034,7 +1036,7 @@ public class ParserImp implements PDDLParser {
      * @throws ParseException If an error is detected
      */
     private void addSharedData(SynAnalyzer syn, TaskImp task, Object data,
-            ArrayList<String> agents) throws ParseException {
+                               Set<String> agents) throws ParseException {
         TaskImp.SharedData sd;
         TaskImp.Type agType = task.getAgentType();
         if (agType == null) {

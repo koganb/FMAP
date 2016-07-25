@@ -535,9 +535,11 @@ public class GroundedTaskImp implements GroundedTask {
             if (tindex != null) {
                 types.add(tindex);
             }
+            objectTypes.add(types);
         }
-        objectTypes.add(types);
+
         return index;
+
     }
 
     /**

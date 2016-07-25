@@ -30,6 +30,7 @@ public abstract class Planner implements ExtendedPlanner {
     static final int NO_TIMEOUT = -1;
     static final int IDA_SEARCH = 1;
     static final int A_SEARCH = 2;
+    private static Logger logger = LoggerFactory.getLogger(Planner.class);
     protected POPIncrementalPlan basePlan;
     protected PlannerFactoryImp configuration;
     protected Heuristic heuristic;
@@ -68,7 +69,6 @@ public abstract class Planner implements ExtendedPlanner {
     protected MessageFilterProposals proposalsFilter;
     protected MessageFilterAdjustment adjustmentFilter;
     protected boolean isAnytime;
-    private Logger logger = LoggerFactory.getLogger(PlannerFactoryImp.class);
     private int discarded;
     private Hashtable<Integer, Boolean> hazardousVars;
     private HeuristicAdjustment hAdjustment;
@@ -445,7 +445,7 @@ public abstract class Planner implements ExtendedPlanner {
             else
                 plans = solutions;
         }
-        for (IPlan p : plans) p.setG(p.numSteps());
+        for (IPlan p : plans) p.setG(p.getNumSteps());
         return plans;
     }
 

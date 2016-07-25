@@ -1,23 +1,19 @@
 package org.agreement_technologies.service.map_communication;
 
+import org.agreement_technologies.common.map_communication.AgentCommunication;
+import org.agreement_technologies.common.map_communication.Message;
+import org.agreement_technologies.common.map_communication.MessageFilter;
+import org.agreement_technologies.common.map_parser.AgentList;
+import org.agreement_technologies.common.map_parser.Task;
+
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.Socket;
 import java.util.ArrayList;
-
-import org.agreement_technologies.common.map_communication.AgentCommunication;
-import org.agreement_technologies.common.map_communication.Message;
-import org.agreement_technologies.common.map_communication.MessageFilter;
-import org.agreement_technologies.common.map_parser.Task;
-
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.Vector;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import org.agreement_technologies.common.map_parser.AgentList;
 
 /**
  * Agent communication utilities
@@ -479,12 +475,16 @@ public class AgentCommunicationImp implements AgentCommunication {
 
     @Override
     public void close() {
-        for (Socket s: clientSockets)
+        for (Socket s : clientSockets) {
             if (s != null) {
                 try {
                     s.close();
-                } catch (IOException ex) { }
+                } catch (IOException ex) {
+
+                }
             }
+        }
+        server.shutdown();
     }
         
     public static class CommunicationException extends RuntimeException {

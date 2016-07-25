@@ -6,6 +6,11 @@ import org.agreement_technologies.common.map_communication.PlanningAgentListener
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_landmarks.Landmarks;
 import org.agreement_technologies.common.map_parser.AgentList;
+import org.agreement_technologies.common.map_planner.Plan;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * @author Oscar Sapena Planning agent
@@ -13,15 +18,17 @@ import org.agreement_technologies.common.map_parser.AgentList;
 public class PlanningAgent extends Thread implements AgentListener {
 
     protected PlanningAlgorithm alg;            // Plannning algorithm
+
     protected String name;                              // Agent name
     protected int timeout;
 
+    private Object monitor;
     /**
      * Constructor of a planning agent
      *
-     * @param name              Agent name
      * @param domain            Domain filename
      * @param problem           Problem filename
+     * @param name              Agent name
      * @param sameObjects       Same object enabled
      * @param traceOn           Activate trace
      * @param h                 Heuristic
@@ -29,19 +36,24 @@ public class PlanningAgent extends Thread implements AgentListener {
      * @param negotiation       Negotiation method
      * @param isAnytime         Anytime behaviour
      * @param timeout           Timeout
+     * @param monitor
+     * @param removeAgents
+     * @param solutionMap
      * @throws Exception Platform error
      */
     public PlanningAgent(String name, String domainFile, String problemFile, AgentList agList,
                          boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
-                         int negotiation, boolean isAnytime, int timeout, AlgorithmType algorithmType) throws Exception {
+                         int negotiation, boolean isAnytime, int timeout, AlgorithmType algorithmType, int goalIndex,
+                         Object monitor, Collection<String> removeAgents, Map<Integer, Collection<Plan>> solutionMap) throws IOException {
         this.name = name.toLowerCase();
+        this.monitor = monitor;
         if (isAnytime) {
             this.timeout = timeout;
         } else {
             this.timeout = -1;
         }
         alg = new PlanningAlgorithm(name, domainFile, problemFile, agList, waitSynch,
-                sameObjects, traceOn, h, searchPerformance, negotiation, isAnytime, algorithmType);
+                sameObjects, traceOn, h, searchPerformance, negotiation, isAnytime, algorithmType, goalIndex, removeAgents, solutionMap);
     }
 
     /**
@@ -50,6 +62,10 @@ public class PlanningAgent extends Thread implements AgentListener {
     @Override
     public void run() {
         alg.execute(timeout);
+
+        synchronized (monitor) {
+            monitor.notify();
+        }
     }
 
     /**
@@ -111,6 +127,10 @@ public class PlanningAgent extends Thread implements AgentListener {
     @Override
     public Landmarks getLandmarks() {
         return alg.landmarks;
+    }
+
+    public PlanningAlgorithm getAlg() {
+        return alg;
     }
 
     void shutdown() {

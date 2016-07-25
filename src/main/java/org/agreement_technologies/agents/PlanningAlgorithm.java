@@ -29,6 +29,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Map;
 
 public class PlanningAlgorithm {
     public static final int STATUS_STARTING = 0;
@@ -66,21 +68,28 @@ public class PlanningAlgorithm {
     protected int searchPerformance;
     protected int negotiation;
     protected boolean isAnytime;
-    protected AgentList agList;    
+    protected AgentList agList;
     protected boolean waitSynch;
     protected boolean negationByFailure;
     protected boolean isMAPDDL;
+    private int goalIndex;
+    private Collection<String> removeAgents;
+    private Map<Integer, Collection<Plan>> solutionMap;
     
     /**
      * Constructor of a planning agent
      */
     public PlanningAlgorithm(String name, String domainFile, String problemFile, AgentList agList,
                              boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
-                             int neg, boolean anytime, AlgorithmType algorithmType) throws Exception {
+                             int neg, boolean anytime, AlgorithmType algorithmType, int goalIndex,
+                             Collection<String> removeAgents, Map<Integer, Collection<Plan>> solutionMap) throws IOException {
         this.name = name.toLowerCase();
         this.comm = new AgentCommunicationImp(this.name, agList);
         this.waitSynch = waitSynch;
         this.agList = agList;
+        this.goalIndex = goalIndex;
+        this.removeAgents = removeAgents;
+        this.solutionMap = solutionMap;
         this.plannerFactory = null;
         this.domainFile = domainFile;
         this.problemFile = problemFile;
@@ -152,6 +161,7 @@ public class PlanningAlgorithm {
             executeWithAsynchronousStart(timeout);
         else
             executeWithSynchronousStart(timeout);
+
         if (comm != null)
             comm.close();
     }
@@ -176,9 +186,12 @@ public class PlanningAlgorithm {
         PDDLParser parser = isMAPDDL ? new MAPDDLParserImp() : new ParserImp();
         try {
             planningTask = parser.parseDomain(domainFile);
+            planningTask.setGoalIndex(goalIndex);
+
         } catch (ParseException e) {
             notifyError(e.getMessage() + ", at line " + e.getErrorOffset()
                     + " (" + domainFile + ")");
+
         } catch (IOException e) {
             notifyError("Read error: " + e.getMessage() + " (" + domainFile + ")");
         }
@@ -192,6 +205,8 @@ public class PlanningAlgorithm {
                 notifyError("Read error: " + e.getMessage() + " (" + problemFile + ")");
             }
         }
+
+        planningTask.removeAgentData(removeAgents);
         long endTime = System.currentTimeMillis() - startTime;
         trace(0, "Parsing completed in " + endTime + "ms.");
         return endTime;
@@ -276,7 +291,7 @@ public class PlanningAlgorithm {
     }
 
     public int getSolutionLength() {
-        return solutionPlan.numSteps() - 2;
+        return solutionPlan.getNumSteps() - 2;
     }
 
     public int getSolutionMakespan() {
@@ -302,6 +317,12 @@ public class PlanningAlgorithm {
             // Task grounding from the parsed task
             planningTime = planningStage(timeout);				// Planning stage
             totalTime += planningTime;
+
+
+            if (solutionPlan != null) {
+                solutionMap.get(goalIndex).add(solutionPlan);
+            }
+
             if (status != STATUS_ERROR) {
                 changeStatus(STATUS_IDLE);
                 trace(0, "Number of messages: " + comm.getNumMessages());
@@ -323,6 +344,11 @@ public class PlanningAlgorithm {
             planningTime = maPDDLGroundTask();
             planningTime += planningStage(timeout);
             showResult();
+
+            if (solutionPlan != null) {
+                solutionMap.get(goalIndex).add(solutionPlan);
+            }
+
         } catch (Throwable e) {
             String error = e.toString() + "\n";
             java.io.StringWriter sw = new java.io.StringWriter();
@@ -373,9 +399,8 @@ public class PlanningAlgorithm {
         } else System.out.println("; No plan found");
     }
 
-    private void waitMs(int time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException ex) { }
+
+    public Task getPlanningTask() {
+        return planningTask;
     }
 }

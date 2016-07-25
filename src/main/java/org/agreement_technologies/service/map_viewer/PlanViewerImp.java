@@ -1,59 +1,22 @@
 package org.agreement_technologies.service.map_viewer;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Point;
-import java.awt.Toolkit;
+import org.agreement_technologies.common.map_planner.*;
+import org.agreement_technologies.common.map_viewer.PlanViewer;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Hashtable;
 
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-
-import org.agreement_technologies.common.map_planner.CausalLink;
-import org.agreement_technologies.common.map_planner.Condition;
-import org.agreement_technologies.common.map_planner.Ordering;
-import org.agreement_technologies.common.map_planner.Plan;
-import org.agreement_technologies.common.map_planner.PlannerFactory;
-import org.agreement_technologies.common.map_planner.Step;
-import org.agreement_technologies.common.map_viewer.PlanViewer;
-
 public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, MouseMotionListener,
 		MouseWheelListener, ActionListener {
 	private static final long serialVersionUID = -677123886339372031L;
-	private Plan plan = null;
-	private Graph g = null;
-	private ArrayList<Node> levels[] = null;
-	private int maxLevels, maxNodesPerLevel, width, height, mouseX, mouseY;
-	private Hashtable<String, java.awt.Color> agentColor;
-	private PopUpMenu popUpMenu;
-	private BufferedImage back;
-	private double scale;
-	private Node selected;
-	private boolean showPrecs, showEffs;
-	private PlannerFactory pf;
-
-	private static java.awt.Font NODE_FONT = new java.awt.Font(
-			"Arial Narrow", java.awt.Font.PLAIN, 11);
 	private static final Color[] AGENT_COLORS = {
 		    Color.BLACK, 		       // black
 			new Color(160, 30, 35),    // dark red
@@ -67,6 +30,19 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 	private static final int HOR_SEPARATION = 200;
 	private static final int NODE_WIDTH = 60;
 	private static final int NODE_HEIGHT = 40;
+	private static java.awt.Font NODE_FONT = new java.awt.Font(
+			"Arial Narrow", java.awt.Font.PLAIN, 11);
+	private Plan plan = null;
+	private Graph g = null;
+	private ArrayList<Node> levels[] = null;
+	private int maxLevels, maxNodesPerLevel, width, height, mouseX, mouseY;
+	private Hashtable<String, java.awt.Color> agentColor;
+	private PopUpMenu popUpMenu;
+	private BufferedImage back;
+	private double scale;
+	private Node selected;
+	private boolean showPrecs, showEffs;
+	private PlannerFactory pf;
 
 	public PlanViewerImp() {
 		super();
@@ -74,19 +50,6 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 		back = null;
 		showPrecs = showEffs = false;
 		initComponents();
-	}
-
-	private void initComponents() {
-		scale = 1;
-		selected = null;
-		addMouseListener(this);
-		addMouseMotionListener(this);
-		addMouseWheelListener(this);
-		popUpMenu = new PopUpMenu();
-		popUpMenu.itemCopy.addActionListener(this);
-		popUpMenu.itemSave.addActionListener(this);
-		popUpMenu.showEffs.addActionListener(this);
-		popUpMenu.showPrecs.addActionListener(this);
 	}
 
 	public PlanViewerImp(boolean isDoubleBuffered) {
@@ -102,6 +65,19 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 	public PlanViewerImp(java.awt.LayoutManager layout, boolean isDoubleBuffered) {
 		super(layout, isDoubleBuffered);
 		initComponents();
+	}
+
+	private void initComponents() {
+		scale = 1;
+		selected = null;
+		addMouseListener(this);
+		addMouseMotionListener(this);
+		addMouseWheelListener(this);
+		popUpMenu = new PopUpMenu();
+		popUpMenu.itemCopy.addActionListener(this);
+		popUpMenu.itemSave.addActionListener(this);
+		popUpMenu.showEffs.addActionListener(this);
+		popUpMenu.showPrecs.addActionListener(this);
 	}
 	
 	private int scale(int n) {
@@ -328,142 +304,6 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 		g.fillPolygon(xPoints, yPoints, 3);
 	}
 
-	private static class Node {
-		Step step;
-		int distanceToLast;
-		ArrayList<Integer> adjacents;
-		ArrayList<Condition> causalLink;
-		int x, y;
-
-		Node(Step ps) {
-			step = ps;
-			distanceToLast = -1;
-			adjacents = new ArrayList<Integer>();
-			causalLink = new ArrayList<Condition>();
-		}
-
-		public String stepToString() {
-			if (step.getIndex() == 0)
-				return "Initial step";
-			if (step.getIndex() == 1)
-				return "Final step";
-			return step.getActionName();
-		}
-
-		boolean contains(Point p) {
-			double xRadius = NODE_WIDTH / 2, yRadius = NODE_HEIGHT / 2;
-			double xTar = p.x - this.x - xRadius, yTar = p.y - this.y - yRadius;
-			return Math.pow(xTar / xRadius, 2) + Math.pow(yTar / yRadius, 2) <= 1;
-		}
-	}
-
-	private static class Graph {
-		int numNodes, numEdges;
-		Node v[];
-
-		public Graph(Plan plan) {
-			ArrayList<Step> planSteps = plan.getStepsArray();
-			this.numNodes = planSteps.size();
-			numEdges = 0;
-			v = new Node[numNodes];
-			for (int i = 0; i < v.length; i++) {
-				v[i] = new Node(planSteps.get(i));
-			}
-			ArrayList<Ordering> orderings = plan.getOrderingsArray();
-			for (Ordering po : orderings) {
-				insertEdge(po.getIndex1(), po.getIndex2(), true, null);
-			}
-			ArrayList<CausalLink> causalLinks = plan.getCausalLinksArray();
-			for (CausalLink cl : causalLinks) {
-				insertEdge(cl.getIndex1(), cl.getIndex2(), false,
-						cl.getCondition());
-			}
-			for (int i = 1; i < v.length; i++) {
-				boolean hasPred = false;
-				for (int j = 0; j < v.length; j++)
-					if (edgeExists(j, i)) {
-						hasPred = true;
-						break;
-					}
-				if (!hasPred)
-					insertEdge(0, i, true, null);
-			}
-			for (int i = 2; i < v.length; i++) {
-				boolean hasSuc = false;
-				for (int j = 2; j < v.length; j++)
-					if (edgeExists(i, j)) {
-						hasSuc = true;
-						break;
-					}
-				if (!hasSuc)
-					insertEdge(i, 1, true, null);
-			}
-			for (int i = 0; i < v.length; i++) {
-				v[i].distanceToLast = maxPath(i, plan.getFinalStep().getIndex());
-			}
-		}
-
-		private boolean edgeExists(int i, int j) {
-			return v[i].adjacents.contains(j);
-		}
-
-		public final void insertEdge(int i, int j, boolean ordering,
-				Condition cond) {
-			if (!edgeExists(i, j)) {
-				v[i].adjacents.add(j);
-				v[i].causalLink.add(cond);
-				numEdges++;
-			} else if (!ordering) {
-				int index = v[i].adjacents.indexOf(j);
-				v[i].causalLink.set(index, cond);
-			}
-		}
-
-		public final int maxPath(int vOrigen, int vDestino) {
-			int distanciaMax[] = new int[v.length];
-			for (int i = 0; i < v.length; i++) {
-				distanciaMax[i] = -1;
-			}
-			distanciaMax[vOrigen] = 0;
-			ArrayDeque<Integer> q = new ArrayDeque<Integer>();
-			q.add(vOrigen);
-			while (!q.isEmpty()) {
-				int vActual = q.poll();
-				ArrayList<Integer> aux = v[vActual].adjacents;
-				for (int i = 0; i < aux.size(); i++) {
-					int vSiguiente = aux.get(i);
-					if (distanciaMax[vSiguiente] <= distanciaMax[vActual]) {
-						distanciaMax[vSiguiente] = distanciaMax[vActual] + 1;
-						if (distanciaMax[vSiguiente] > v.length) {
-							System.out.println("Error: loop in the plan");
-							return v.length;
-						}
-						q.add(vSiguiente);
-					}
-				}
-			}
-			return distanciaMax[vDestino];
-		}
-
-		public void addNodesAtLevel(int level, ArrayList<Node> list) {
-			for (int i = 0; i < v.length; i++) {
-				if (v[i].distanceToLast == level) {
-					list.add(v[i]);
-				}
-			}
-		}
-
-		public int getNumLevels() {
-			int n = -1;
-			for (int i = 0; i < v.length; i++) {
-				if (v[i].distanceToLast > n) {
-					n = v[i].distanceToLast;
-				}
-			}
-			return n + 1;
-		}
-	}
-
 	private void drawNode(Graphics2D g2d, Node n) {
 		g2d.setFont(NODE_FONT);
 		java.awt.FontMetrics metrics = g2d.getFontMetrics(NODE_FONT);
@@ -547,52 +387,6 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 		}
 	}
 
-	private class PopUpMenu extends JPopupMenu {
-		private static final long serialVersionUID = 1L;
-		JMenuItem itemCopy, itemSave;
-		JCheckBoxMenuItem showPrecs, showEffs;
-		
-		public PopUpMenu() {
-			itemCopy = new JMenuItem("Copy plan to clipboard");
-			add(itemCopy);
-			itemSave = new JMenuItem("Save plan to plan.txt");
-			add(itemSave);
-			addSeparator();
-			showPrecs = new JCheckBoxMenuItem("Show preconditions");
-			add(showPrecs);
-			showEffs = new JCheckBoxMenuItem("Show effects");
-			add(showEffs);
-		}
-	}
-
-	public static class ImageSelection implements Transferable {
-		private Image image;
-
-		public ImageSelection(Image image) {
-			this.image = image;
-		}
-
-		// Returns the supported flavors of our implementation
-		public DataFlavor[] getTransferDataFlavors() {
-			return new DataFlavor[] { DataFlavor.imageFlavor };
-		}
-
-		// Returns true if flavor is supported
-		public boolean isDataFlavorSupported(DataFlavor flavor) {
-			return DataFlavor.imageFlavor.equals(flavor);
-		}
-
-		// Returns Image object housed by Transferable object
-		public Object getTransferData(DataFlavor flavor)
-				throws UnsupportedFlavorException, java.io.IOException {
-			if (!DataFlavor.imageFlavor.equals(flavor)) {
-				throw new UnsupportedFlavorException(flavor);
-			}
-			// else return the payload
-			return image;
-		}
-	}
-
 	@Override
 	public void actionPerformed(ActionEvent e) {
 		if (e.getSource() == popUpMenu.itemCopy) {
@@ -604,8 +398,8 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 			try {
 				java.io.FileWriter outFile = new java.io.FileWriter("plan.txt");
 				java.io.PrintWriter out = new java.io.PrintWriter(outFile);
-				out.println(plan.numSteps()); // Number of steps
-				for (int i = 0; i < plan.numSteps(); i++) { // For each step
+				out.println(plan.getNumSteps()); // Number of steps
+				for (int i = 0; i < plan.getNumSteps(); i++) { // For each step
 					Step s = plan.getStepsArray().get(i);
 					out.println(s.getActionName()); // Step name
 					if (s == plan.getInitialStep() || s == plan.getFinalStep()) // Step
@@ -690,7 +484,7 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 	@Override
 	public void mouseMoved(MouseEvent e) {
 	}
-	
+
 	public void mouseClicked(MouseEvent e) {
 	}
 
@@ -710,13 +504,13 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 	private Node selectedNode(Point p) {
 		for (int level = 0; level < maxLevels; level++) {
 			for (Node n : levels[level]) {
-				if (n.contains(p)) 
+				if (n.contains(p))
 					return n;
 			}
 		}
 		return null;
 	}
-	
+
 	private void showSelectedOrderings(Point p) {
 		for (int level = 0; level < maxLevels; level++) {
 			for (Node n : levels[level]) {
@@ -731,7 +525,7 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 			}
 		}
 	}
-	
+
 	public void mousePressed(MouseEvent e) {
 		if (e.getButton() == MouseEvent.BUTTON1) {
 			mouseX = e.getX();
@@ -742,7 +536,7 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 					selected = selectedNode(p);
 					if (selected == null)
 						showSelectedOrderings(p);
-				}				
+				}
 			} else {
 				Node n = selectedNode(p);
 				if (n != null) showNodeInfo(n);
@@ -750,6 +544,188 @@ public class PlanViewerImp extends JPanel implements PlanViewer, MouseListener, 
 			}
 		} else if (e.getButton() == MouseEvent.BUTTON3) {
 			popUpMenu.show(e.getComponent(), e.getX(), e.getY());
+		}
+	}
+
+	private static class Node {
+		Step step;
+		int distanceToLast;
+		ArrayList<Integer> adjacents;
+		ArrayList<Condition> causalLink;
+		int x, y;
+
+		Node(Step ps) {
+			step = ps;
+			distanceToLast = -1;
+			adjacents = new ArrayList<Integer>();
+			causalLink = new ArrayList<Condition>();
+		}
+
+		public String stepToString() {
+			if (step.getIndex() == 0)
+				return "Initial step";
+			if (step.getIndex() == 1)
+				return "Final step";
+			return step.getActionName();
+		}
+
+		boolean contains(Point p) {
+			double xRadius = NODE_WIDTH / 2, yRadius = NODE_HEIGHT / 2;
+			double xTar = p.x - this.x - xRadius, yTar = p.y - this.y - yRadius;
+			return Math.pow(xTar / xRadius, 2) + Math.pow(yTar / yRadius, 2) <= 1;
+		}
+	}
+
+	private static class Graph {
+		int numNodes, numEdges;
+		Node v[];
+
+		public Graph(Plan plan) {
+			ArrayList<Step> planSteps = plan.getStepsArray();
+			this.numNodes = planSteps.size();
+			numEdges = 0;
+			v = new Node[numNodes];
+			for (int i = 0; i < v.length; i++) {
+				v[i] = new Node(planSteps.get(i));
+			}
+			ArrayList<Ordering> orderings = plan.getOrderingsArray();
+			for (Ordering po : orderings) {
+				insertEdge(po.getIndex1(), po.getIndex2(), true, null);
+			}
+			ArrayList<CausalLink> causalLinks = plan.getCausalLinksArray();
+			for (CausalLink cl : causalLinks) {
+				insertEdge(cl.getIndex1(), cl.getIndex2(), false,
+						cl.getCondition());
+			}
+			for (int i = 1; i < v.length; i++) {
+				boolean hasPred = false;
+				for (int j = 0; j < v.length; j++)
+					if (edgeExists(j, i)) {
+						hasPred = true;
+						break;
+					}
+				if (!hasPred)
+					insertEdge(0, i, true, null);
+			}
+			for (int i = 2; i < v.length; i++) {
+				boolean hasSuc = false;
+				for (int j = 2; j < v.length; j++)
+					if (edgeExists(i, j)) {
+						hasSuc = true;
+						break;
+					}
+				if (!hasSuc)
+					insertEdge(i, 1, true, null);
+			}
+			for (int i = 0; i < v.length; i++) {
+				v[i].distanceToLast = maxPath(i, plan.getFinalStep().getIndex());
+			}
+		}
+
+		private boolean edgeExists(int i, int j) {
+			return v[i].adjacents.contains(j);
+		}
+
+		public final void insertEdge(int i, int j, boolean ordering,
+									 Condition cond) {
+			if (!edgeExists(i, j)) {
+				v[i].adjacents.add(j);
+				v[i].causalLink.add(cond);
+				numEdges++;
+			} else if (!ordering) {
+				int index = v[i].adjacents.indexOf(j);
+				v[i].causalLink.set(index, cond);
+			}
+		}
+
+		public final int maxPath(int vOrigen, int vDestino) {
+			int distanciaMax[] = new int[v.length];
+			for (int i = 0; i < v.length; i++) {
+				distanciaMax[i] = -1;
+			}
+			distanciaMax[vOrigen] = 0;
+			ArrayDeque<Integer> q = new ArrayDeque<Integer>();
+			q.add(vOrigen);
+			while (!q.isEmpty()) {
+				int vActual = q.poll();
+				ArrayList<Integer> aux = v[vActual].adjacents;
+				for (int i = 0; i < aux.size(); i++) {
+					int vSiguiente = aux.get(i);
+					if (distanciaMax[vSiguiente] <= distanciaMax[vActual]) {
+						distanciaMax[vSiguiente] = distanciaMax[vActual] + 1;
+						if (distanciaMax[vSiguiente] > v.length) {
+							System.out.println("Error: loop in the plan");
+							return v.length;
+						}
+						q.add(vSiguiente);
+					}
+				}
+			}
+			return distanciaMax[vDestino];
+		}
+
+		public void addNodesAtLevel(int level, ArrayList<Node> list) {
+			for (int i = 0; i < v.length; i++) {
+				if (v[i].distanceToLast == level) {
+					list.add(v[i]);
+				}
+			}
+		}
+
+		public int getNumLevels() {
+			int n = -1;
+			for (int i = 0; i < v.length; i++) {
+				if (v[i].distanceToLast > n) {
+					n = v[i].distanceToLast;
+				}
+			}
+			return n + 1;
+		}
+	}
+
+	public static class ImageSelection implements Transferable {
+		private Image image;
+
+		public ImageSelection(Image image) {
+			this.image = image;
+		}
+
+		// Returns the supported flavors of our implementation
+		public DataFlavor[] getTransferDataFlavors() {
+			return new DataFlavor[]{DataFlavor.imageFlavor};
+		}
+
+		// Returns true if flavor is supported
+		public boolean isDataFlavorSupported(DataFlavor flavor) {
+			return DataFlavor.imageFlavor.equals(flavor);
+		}
+
+		// Returns Image object housed by Transferable object
+		public Object getTransferData(DataFlavor flavor)
+				throws UnsupportedFlavorException, java.io.IOException {
+			if (!DataFlavor.imageFlavor.equals(flavor)) {
+				throw new UnsupportedFlavorException(flavor);
+			}
+			// else return the payload
+			return image;
+		}
+	}
+
+	private class PopUpMenu extends JPopupMenu {
+		private static final long serialVersionUID = 1L;
+		JMenuItem itemCopy, itemSave;
+		JCheckBoxMenuItem showPrecs, showEffs;
+
+		public PopUpMenu() {
+			itemCopy = new JMenuItem("Copy plan to clipboard");
+			add(itemCopy);
+			itemSave = new JMenuItem("Save plan to plan.txt");
+			add(itemSave);
+			addSeparator();
+			showPrecs = new JCheckBoxMenuItem("Show preconditions");
+			add(showPrecs);
+			showEffs = new JCheckBoxMenuItem("Show effects");
+			add(showEffs);
 		}
 	}
 }

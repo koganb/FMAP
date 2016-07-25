@@ -1,17 +1,15 @@
 package org.agreement_technologies.service.map_planner;
 
+import org.agreement_technologies.common.map_planner.*;
+import org.agreement_technologies.service.map_planner.utils.LinearlizationUtils;
+import org.agreement_technologies.service.tools.CustomArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.PriorityQueue;
-
-import org.agreement_technologies.common.map_planner.CausalLink;
-import org.agreement_technologies.common.map_planner.Condition;
-import org.agreement_technologies.common.map_planner.Ordering;
-import org.agreement_technologies.common.map_planner.Plan;
-import org.agreement_technologies.common.map_planner.PlannerFactory;
-import org.agreement_technologies.common.map_planner.Step;
-import org.agreement_technologies.service.tools.CustomArrayList;
 
 /**
  * Incremental plans for the external search tree; each plan stores a new action
@@ -20,6 +18,8 @@ import org.agreement_technologies.service.tools.CustomArrayList;
  * @author Alex
  */
 public class POPIncrementalPlan implements IPlan {
+	private static Logger logger = LoggerFactory.getLogger(POPIncrementalPlan.class);
+
 	private String name;
 	private POPIncrementalPlan father;
 	private Step step;
@@ -91,6 +91,36 @@ public class POPIncrementalPlan implements IPlan {
 	public POPIncrementalPlan(String planName) {
 		name = planName;
 		totalOrder = null;
+	}
+
+	private static int linearization(POPIncrementalPlan p, int[] toPlan,
+									 int index, boolean[] visited,
+									 HashMap<Integer, ArrayList<Integer>> orderings,
+									 HashMap<Integer, POPIncrementalPlan> incPlans) {
+
+		int s = p.getStep().getIndex();
+		logger.debug("Plan linearization {} index {}", p, s);
+
+
+		visited[s] = true;
+		// Analyze causal links s1 -<v,d>-> s2 in p by recursively calling
+		// linearization over s1
+		// p adds an action and supports all its preconditions through
+		// previously existing actions in the plan
+		for (CausalLink cl : p.causalLinks) {
+			if (!visited[cl.getIndex1()])
+				index = linearization(incPlans.get(cl.getIndex1()), toPlan,
+						index, visited, orderings, incPlans);
+		}
+		ArrayList<Integer> prev = orderings.get(s);
+		if (prev != null)
+			for (Integer s1 : prev)
+				if (!visited[s1])
+					index = linearization(incPlans.get(s1), toPlan, index,
+							visited, orderings, incPlans);
+		if (s != 1)
+			toPlan[index++] = s;
+		return index;
 	}
 
 	// Adds all the causal links when expanding a plan
@@ -183,6 +213,10 @@ public class POPIncrementalPlan implements IPlan {
 		return metric;
 	}
 
+	void setMetric(double metric) {
+		this.metric = metric;
+	}
+
 	@Override
 	public CustomArrayList<Ordering> getTotalOrderings() {
 		return POP.getTotalOrderings();
@@ -204,7 +238,7 @@ public class POPIncrementalPlan implements IPlan {
 	}
 
 	@Override
-	public int numSteps() {
+	public int getNumSteps() {
 		return numSteps;
 	}
 
@@ -222,11 +256,6 @@ public class POPIncrementalPlan implements IPlan {
 	}
 
 	@Override
-	public void setG(int g) {
-		this.g = g;
-	}
-
-	@Override
 	public boolean isRoot() {
 		return father == null;
 	}
@@ -234,6 +263,11 @@ public class POPIncrementalPlan implements IPlan {
 	@Override
 	public int getG() {
 		return g;
+	}
+
+	@Override
+	public void setG(int g) {
+		this.g = g;
 	}
 
 	@Override
@@ -299,13 +333,19 @@ public class POPIncrementalPlan implements IPlan {
 	}
 
 	@Override
-	public boolean equals(Object x) {
-		return ((POPIncrementalPlan) x).name.equals(name);
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		POPIncrementalPlan that = (POPIncrementalPlan) o;
+
+		return name != null ? name.equals(that.name) : that.name == null;
+
 	}
 
 	@Override
 	public int hashCode() {
-		return name.hashCode();
+		return name != null ? name.hashCode() : 0;
 	}
 
 	@Override
@@ -342,7 +382,13 @@ public class POPIncrementalPlan implements IPlan {
 			}
 		// System.out.println("Linear " + getName() + ": " +
 		// java.util.Arrays.toString(toPlan));
-		return totalOrder;
+
+		int[] linearize = LinearlizationUtils.linearize(this);
+
+		if (!Arrays.equals(linearize, totalOrder)) {
+			logger.debug("NOT EQUALS");
+		}
+		return linearize;
 		/*
 		 * ArrayList<Integer> toPlan = new ArrayList<Integer>(numSteps); boolean
 		 * inserted[] = new boolean[numSteps]; toPlan.add(0); toPlan.add(1);
@@ -369,32 +415,6 @@ public class POPIncrementalPlan implements IPlan {
 		 * int res[] = new int[toPlan.size()]; for (int i = 0; i < res.length;
 		 * i++) res[i] = toPlan.get(i); return res;
 		 */
-	}
-
-	private static int linearization(POPIncrementalPlan p, int[] toPlan,
-			int index, boolean[] visited,
-			HashMap<Integer, ArrayList<Integer>> orderings,
-			HashMap<Integer, POPIncrementalPlan> incPlans) {
-		int s = p.getStep().getIndex();
-		visited[s] = true;
-		// Analyze causal links s1 -<v,d>-> s2 in p by recursively calling
-		// linearization over s1
-		// p adds an action and supports all its preconditions through
-		// previously existing actions in the plan
-		for (CausalLink cl : p.causalLinks) {
-			if (!visited[cl.getIndex1()])
-				index = linearization(incPlans.get(cl.getIndex1()), toPlan,
-						index, visited, orderings, incPlans);
-		}
-		ArrayList<Integer> prev = orderings.get(s);
-		if (prev != null)
-			for (Integer s1 : prev)
-				if (!visited[s1])
-					index = linearization(incPlans.get(s1), toPlan, index,
-							visited, orderings, incPlans);
-		if (s != 1)
-			toPlan[index++] = s;
-		return index;
 	}
 
 	@Override
@@ -495,10 +515,6 @@ public class POPIncrementalPlan implements IPlan {
 			hPriv = tmp;
 		}
 		hPriv[prefIndex] = h;
-	}
-
-	void setMetric(double metric) {
-		this.metric = metric;
 	}
 
 	private int calculateSteps() {

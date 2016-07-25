@@ -1,28 +1,20 @@
 package org.agreement_technologies.agents;
 
-import static java.awt.Frame.ICONIFIED;
-import static org.agreement_technologies.agents.GUIBootMultiAlg.AlgorithmType.*;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Scanner;
-import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JTextField;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_heuristic.HeuristicFactory;
 import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
 import org.agreement_technologies.common.map_parser.AgentList;
 import org.agreement_technologies.common.map_planner.PlannerFactory;
 import org.agreement_technologies.service.map_parser.ParserImp;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.io.*;
+import java.util.Collections;
+import java.util.Scanner;
+
+import static org.agreement_technologies.agents.GUIBootMultiAlg.AlgorithmType.FMAP;
 
 /**
  * @author Oscar
@@ -33,10 +25,38 @@ public class GUIBoot extends JFrame {
     //private static final String[] searchMethods = {"Speed", "Balanced", "Quality"};
     private static final String[] heuristics = {"Breadth", "FF", "DTG", "Landmarks", "Land.Inc."};
     private static final String[] negotiation = {"Cooperative", "Borda voting", "Runoff voting"};
+    private final Object monitor = new Object();
     private String startDir;	// Start folder for selecting files
     private String qpidHost;
     private int timeout;
-
+    // Variables declaration
+    private javax.swing.JButton jButtonAddAgent;
+    private javax.swing.JButton jButtonClearAgents;
+    private javax.swing.JButton jButtonLoadConfig;
+    private javax.swing.JButton jButtonLoadDomain;
+    private javax.swing.JButton jButtonLoadProblem;
+    private javax.swing.JButton jButtonSaveConfig;
+    private javax.swing.JButton jButtonStart;
+    //private javax.swing.JButton jButtonBatch;
+    private javax.swing.JLabel jLabel1;
+    private javax.swing.JLabel jLabel2;
+    private javax.swing.JLabel jLabel3;
+    @SuppressWarnings("rawtypes")
+    private javax.swing.JList jListAgents;
+    private javax.swing.JPanel jPanel1;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTextField jTextFieldAgent;
+    private javax.swing.JTextField jTextFieldDomain;
+    private javax.swing.JTextField jTextFieldProblem;
+    @SuppressWarnings("rawtypes")
+    private javax.swing.JComboBox heuristicType;
+    private javax.swing.JComboBox negotiationType;
+    //private javax.swing.JComboBox searchType;
+    private javax.swing.JCheckBox sameObjects;
+    private javax.swing.JCheckBox trace;
+    private javax.swing.JCheckBox anytime;
+    private JTextField jTextTimeout;
+    private JTextField jTextQpid;
     /**
      * Constructs the GUI for launching agents
      */
@@ -452,7 +472,7 @@ public class GUIBoot extends JFrame {
                 GUIBoot.Agent a = (GUIBoot.Agent) model.getElementAt(i);
                 PlanningAgent ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
                         agList, false, sameObjects, trace.isSelected(), h, searchPerformance, n,
-                        isAnytime, timeout, FMAP);
+                        isAnytime, timeout, FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
                 GUIPlanningAgent gui = new GUIPlanningAgent(ag);
                 gui.setLocation(x, y);
                 y += gui.getHeight();
@@ -481,35 +501,6 @@ public class GUIBoot extends JFrame {
         jButtonStart.setEnabled(false);
         setState(ICONIFIED);
     }
-
-    // Variables declaration
-    private javax.swing.JButton jButtonAddAgent;
-    private javax.swing.JButton jButtonClearAgents;
-    private javax.swing.JButton jButtonLoadConfig;
-    private javax.swing.JButton jButtonLoadDomain;
-    private javax.swing.JButton jButtonLoadProblem;
-    private javax.swing.JButton jButtonSaveConfig;
-    private javax.swing.JButton jButtonStart;
-    //private javax.swing.JButton jButtonBatch;
-    private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel2;
-    private javax.swing.JLabel jLabel3;
-    @SuppressWarnings("rawtypes")
-    private javax.swing.JList jListAgents;
-    private javax.swing.JPanel jPanel1;
-    private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JTextField jTextFieldAgent;
-    private javax.swing.JTextField jTextFieldDomain;
-    private javax.swing.JTextField jTextFieldProblem;
-    @SuppressWarnings("rawtypes")
-    private javax.swing.JComboBox heuristicType;
-    private javax.swing.JComboBox negotiationType;
-    //private javax.swing.JComboBox searchType;
-    private javax.swing.JCheckBox sameObjects;
-    private javax.swing.JCheckBox trace;
-    private javax.swing.JCheckBox anytime;
-    private JTextField jTextTimeout;
-    private JTextField jTextQpid;
 
     // Initial parameters for an agent
     private class Agent {

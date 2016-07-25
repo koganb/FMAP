@@ -1,18 +1,17 @@
 package org.agreement_technologies.service.map_parser;
 
+import org.agreement_technologies.common.map_parser.*;
+import org.agreement_technologies.service.map_parser.SynAnalyzer.Symbol;
+import org.apache.commons.collections4.CollectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.text.ParseException;
 import java.util.ArrayList;
-import org.agreement_technologies.common.map_parser.Congestion;
-import org.agreement_technologies.common.map_parser.CongestionFluent;
-import org.agreement_technologies.common.map_parser.CongestionPenalty;
-import org.agreement_technologies.common.map_parser.CongestionUsage;
-import org.agreement_technologies.common.map_parser.Fact;
-import org.agreement_technologies.common.map_parser.Metric;
-import org.agreement_technologies.common.map_parser.NumericEffect;
-import org.agreement_technologies.common.map_parser.NumericExpression;
-import org.agreement_technologies.common.map_parser.NumericFact;
-import org.agreement_technologies.common.map_parser.Task;
-import org.agreement_technologies.service.map_parser.SynAnalyzer.Symbol;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of an ungrounded planning task Stores the problem and domain
@@ -22,25 +21,23 @@ import org.agreement_technologies.service.map_parser.SynAnalyzer.Symbol;
  * @since Mar 2011
  */
 public class TaskImp implements Task {
-
     static final int OBJECT_TYPE = 0;	// Index of the predefined type 'object'
     static final int BOOLEAN_TYPE = 1;	// Index of the predefined type 'boolean'
     static final int AGENT_TYPE = 2;	// Index of the predefined type 'agent'
     static final int NUMBER_TYPE = 3;	// Index of the predefined type 'number'
-    
     static final int TRUE_VALUE = 0;	// Index of the predefined object 'true'
     static final int FALSE_VALUE = 1;	// Index of the predefined object 'false'
-
+    private static Logger logger = LoggerFactory.getLogger(TaskImp.class);
     String domainName;						// Domain name
     String problemName;						// Problem name
     ArrayList<String> requirements;			// Requirements list
-    ArrayList<Type> types;				// Variable types
-    ArrayList<Value> values;				// Objects and constants
+    List<Type> types;                // Variable types
+    List<Value> values;                // Objects and constants
     ArrayList<Variable> predicates;			// Predicates
     ArrayList<Function> functions;			// Functions and multi-functions
     ArrayList<Operator> operators;			// Operators list
     ArrayList<SharedData> sharedData;                   // Shared predicates/functions
-    ArrayList<Assignment> init;				// Init section
+    List<Assignment> init;                // Init section
     ArrayList<Operator> beliefs;			// Belief rules
     ArrayList<Assignment> gGoals;			// Global goals
     ArrayList<PreferenceImp> preferences;		// Preferences
@@ -48,6 +45,7 @@ public class TaskImp implements Task {
     MetricImp metric;                                   // Metric
     double selfInterest;				// Self-interest level
     double metricThreshold;				// Metric threshold
+    private int goalIndex;
 
     /**
      * Crates an empty planning task
@@ -506,13 +504,28 @@ public class TaskImp implements Task {
      * private goals
      * @return Array of goals (facts)
      */
+
     @Override
-    public Fact[] getGoals() {
+    public void setGoalIndex(int goalIndex) {
+        this.goalIndex = goalIndex;
+    }
+
+
+    @Override
+    public Fact[] getAllGoals() {
         TaskTypes.FactImp res[] = new TaskTypes.FactImp[gGoals.size()];
         for (int i = 0; i < res.length; i++) {
             res[i] = getFact(gGoals.get(i));
         }
         return res;
+    }
+
+
+    @Override
+    public Fact[] getGoals() {
+        Fact[] goals = Arrays.copyOfRange(getAllGoals(), this.goalIndex, this.goalIndex + 1);
+        logger.info("goalIndex {}, goals : {}", this.goalIndex, (Object) goals);
+        return goals;
     }
 
     /**
@@ -665,6 +678,25 @@ public class TaskImp implements Task {
         return res.toArray(new NumericFact[res.size()]);
     }
 
+    @Override
+    public void removeAgentData(Collection<String> removeAgents) {
+        this.sharedData.stream().
+                forEach(s -> s.agents = s.agents.stream().
+                        filter(i -> !removeAgents.contains(i.name)).collect(Collectors.toList()));
+
+        this.init = this.init.stream().
+                filter(s -> !CollectionUtils.containsAny(
+                        s.params.stream().map(i -> i.name).collect(Collectors.toSet()), removeAgents)).
+                filter(s -> !CollectionUtils.containsAny(
+                        s.values.stream().map(i -> i.name).collect(Collectors.toSet()), removeAgents)).
+                collect(Collectors.toList());
+
+        this.values = this.values.stream().
+                filter(s -> !removeAgents.contains(s.name)).
+                collect(Collectors.toList());
+
+
+    }
     
     /**
      * ***********************************************************
@@ -675,6 +707,69 @@ public class TaskImp implements Task {
     /**
      * ***********************************************************
      */
+
+    public void addPreference(String name, Assignment a, SynAnalyzer syn) throws ParseException {
+        for (PreferenceImp p : preferences) {
+            if (p.name.equalsIgnoreCase(name)) {
+                syn.notifyError("Preference '" + name + "' redefined");
+            }
+        }
+        preferences.add(new PreferenceImp(name, a));
+    }
+
+    @Override
+    public double getSelfInterest() {
+        return selfInterest;
+    }
+
+    @Override
+    public double getMetricThreshold() {
+        return metricThreshold;
+    }
+
+    @Override
+    public Fact[] getPreferences() {
+        TaskTypes.FactImp res[] = new TaskTypes.FactImp[preferences.size()];
+        for (int i = 0; i < res.length; i++) {
+            res[i] = getFact(preferences.get(i).goal);
+        }
+        return res;
+    }
+
+    @Override
+    public String getPreferenceName(int index) {
+        return preferences.get(index).name;
+    }
+
+    @Override
+    public Metric getMetric() {
+        return metric;
+    }
+
+    public enum NumericExpressionType {
+        NET_NUMBER, NET_VAR,
+        NET_ADD, NET_DEL, NET_PROD, NET_DIV,
+        NET_USAGE
+    }
+
+    /**
+     * Operator condition types
+     */
+    public enum OperatorConditionType {
+        CT_NONE, CT_EQUAL, CT_MEMBER,
+        CT_ASSIGN, CT_ADD, CT_DEL,
+        CT_INCREASE
+    }
+
+    public enum CongestionUsageType {
+        CUT_OR, CUT_AND, CUT_ACTION
+    }
+
+    public enum ConditionType {
+        CT_EQUAL, CT_GREATER, CT_GREATER_EQ,
+        CT_LESS, CT_LESS_EQ, CT_DISTINCT
+    }
+
     /**
      * Variable type
      */
@@ -754,7 +849,7 @@ public class TaskImp implements Task {
             }
             return false;
         }
-        
+
         @Override
         public String toString() {
             return name;
@@ -853,7 +948,7 @@ public class TaskImp implements Task {
             }
             return comp;
         }
-        
+
         @Override
         public String toString() {
             return name;
@@ -888,7 +983,7 @@ public class TaskImp implements Task {
         public int hashCode() {
             return name.hashCode();
         }
-        
+
         @Override
         public String toString() {
             return name;
@@ -976,12 +1071,6 @@ public class TaskImp implements Task {
             return false;
         }
     }
-
-    public enum NumericExpressionType {
-        NET_NUMBER, NET_VAR, 
-        NET_ADD, NET_DEL, NET_PROD, NET_DIV,
-        NET_USAGE
-    }
     
     public class NumericExpressionImp implements NumericExpression {
         NumericExpressionType type;
@@ -989,7 +1078,7 @@ public class TaskImp implements Task {
         Variable var;                       // if type == NET_VAR (numeric variable)
         NumericExpressionImp left;
         NumericExpressionImp right;         // otherwise (operands)
-        
+
 
         NumericExpressionImp(double value) {
             type = NumericExpressionType.NET_NUMBER;
@@ -1000,7 +1089,7 @@ public class TaskImp implements Task {
             type = NumericExpressionType.NET_VAR;
             this.var = v;
         }
-        
+
         NumericExpressionImp(NumericExpressionType type) {
             this.type = type;
             left = right = null;
@@ -1046,15 +1135,6 @@ public class TaskImp implements Task {
     }
     
     /**
-     * Operator condition types
-     */
-    public enum OperatorConditionType {
-        CT_NONE, CT_EQUAL, CT_MEMBER,
-        CT_ASSIGN, CT_ADD, CT_DEL,
-        CT_INCREASE
-    }
-
-    /**
      * Operator condition
      */
     public class OperatorCondition {
@@ -1063,7 +1143,7 @@ public class TaskImp implements Task {
         Variable var;				// Variable
         Value value;				// Value
         NumericExpressionImp exp;                  // Only for INCREASE operations
-        
+
         /**
          * Constructor
          *
@@ -1115,7 +1195,7 @@ public class TaskImp implements Task {
 
         Variable var;				// Predicate
         Function fnc;				// Function
-        ArrayList<Value> agents;	// Agents that can observe the predicate/function
+        List<Value> agents;    // Agents that can observe the predicate/function
 
         /**
          * Constructor of a shared predicate
@@ -1151,7 +1231,7 @@ public class TaskImp implements Task {
         boolean neg;				// True if the assignment is negated
         boolean isNumeric;                      // Only for numeric assignments
         double value;
-        
+
         /**
          * Constructor of a literal
          *
@@ -1275,15 +1355,11 @@ public class TaskImp implements Task {
             return term.get(index);
         }
     }
-    
-    public enum CongestionUsageType {
-        CUT_OR, CUT_AND, CUT_ACTION
-    }
-    
+
     public class CongestionAction {
         Operator op;
         ArrayList<Value> params;
-        
+
         CongestionAction(Operator op) {
             this.op = op;
             params = new ArrayList<>(op.params.size());
@@ -1293,11 +1369,11 @@ public class TaskImp implements Task {
             params.add(value);
         }
     }
-    
+
     public class CongestionUsageImp implements CongestionUsage {
         CongestionUsageType type;
         CongestionAction action;               // if type == CUT_ACTION
-        ArrayList<CongestionUsageImp> cond;    // otherwise     
+        ArrayList<CongestionUsageImp> cond;    // otherwise
 
         CongestionUsageImp(CongestionUsageType type) {
             this.type = type;
@@ -1347,18 +1423,13 @@ public class TaskImp implements Task {
             return action.params.get(paramNumber).name;
         }
     }
-    
-    public enum ConditionType {
-        CT_EQUAL, CT_GREATER, CT_GREATER_EQ,
-        CT_LESS, CT_LESS_EQ, CT_DISTINCT
-    }
-    
+
     public class CongestionPenaltyImp implements CongestionPenalty {
         ConditionType condition;
         double conditionValue;
         Variable incVariable;
         NumericExpressionImp increment;
-        
+
         CongestionPenaltyImp(ConditionType conditionType) {
             condition = conditionType;
         }
@@ -1398,14 +1469,14 @@ public class TaskImp implements Task {
             return increment;
         }
     }
-    
+
     public class CongestionImp implements Congestion {
         String name;
         ArrayList<Value> params;
         ArrayList<Value> vars;
         CongestionUsageImp usage;
         ArrayList<CongestionPenaltyImp> penalty;
-        
+
         CongestionImp(String name) {
             this.name = name;
             params = new ArrayList<>();
@@ -1413,20 +1484,20 @@ public class TaskImp implements Task {
             usage = null;
             penalty = new ArrayList<>();
         }
-        
+
         @Override
         public boolean equals(Object x) {
             return ((CongestionImp) x).name.equalsIgnoreCase(name);
         }
 
         void addParameter(Value p, SynAnalyzer syn) throws ParseException {
-            if (params.contains(p) || vars.contains(p)) 
+            if (params.contains(p) || vars.contains(p))
                 syn.notifyError("Parameter '" + p.name + "' redefined");
             params.add(p);
         }
 
         void addVariable(Value p, SynAnalyzer syn) throws ParseException {
-            if (params.contains(p) || vars.contains(p)) 
+            if (params.contains(p) || vars.contains(p))
                 syn.notifyError("Variable '" + p.name + "' redefined");
             vars.add(p);
         }
@@ -1438,7 +1509,7 @@ public class TaskImp implements Task {
                 if (v.name.equalsIgnoreCase(name)) return v;
             return null;
         }
-        
+
         void addPenalty(CongestionPenaltyImp p) {
             penalty.add(p);
         }
@@ -1504,43 +1575,5 @@ public class TaskImp implements Task {
         public CongestionPenalty getPenalty(int index) {
             return penalty.get(index);
         }
-    }
-
-    public void addPreference(String name, Assignment a, SynAnalyzer syn) throws ParseException {
-        for (PreferenceImp p : preferences) {
-            if (p.name.equalsIgnoreCase(name)) {
-                syn.notifyError("Preference '" + name + "' redefined");
-            }
-        }
-        preferences.add(new PreferenceImp(name, a));
-    }
-
-    @Override
-    public double getSelfInterest() {
-        return selfInterest;
-    }
-
-    @Override
-    public double getMetricThreshold() {
-        return metricThreshold;
-    }
-
-    @Override
-    public Fact[] getPreferences() {
-        TaskTypes.FactImp res[] = new TaskTypes.FactImp[preferences.size()];
-        for (int i = 0; i < res.length; i++) {
-            res[i] = getFact(preferences.get(i).goal);
-        }
-        return res;
-    }
-
-    @Override
-    public String getPreferenceName(int index) {
-        return preferences.get(index).name;
-    }
-
-    @Override
-    public Metric getMetric() {
-        return metric;
     }
 }
