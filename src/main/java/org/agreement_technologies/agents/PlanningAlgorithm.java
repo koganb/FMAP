@@ -31,6 +31,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 public class PlanningAlgorithm {
     public static final int STATUS_STARTING = 0;
@@ -74,7 +75,7 @@ public class PlanningAlgorithm {
     protected boolean isMAPDDL;
     private int goalIndex;
     private Collection<String> removeAgents;
-    private Map<Integer, Collection<Plan>> solutionMap;
+    private Map<Integer, Set<Plan>> solutionMap;
     
     /**
      * Constructor of a planning agent
@@ -82,7 +83,7 @@ public class PlanningAlgorithm {
     public PlanningAlgorithm(String name, String domainFile, String problemFile, AgentList agList,
                              boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
                              int neg, boolean anytime, AlgorithmType algorithmType, int goalIndex,
-                             Collection<String> removeAgents, Map<Integer, Collection<Plan>> solutionMap) throws IOException {
+                             Collection<String> removeAgents, Map<Integer, Set<Plan>> solutionMap) throws IOException {
         this.name = name.toLowerCase();
         this.comm = new AgentCommunicationImp(this.name, agList);
         this.waitSynch = waitSynch;
@@ -319,7 +320,7 @@ public class PlanningAlgorithm {
             totalTime += planningTime;
 
 
-            if (solutionPlan != null) {
+            if (this.comm.getAgentIndex(groundedTask.getAgentName()) == 1 && solutionPlan != null) {
                 solutionMap.get(goalIndex).add(solutionPlan);
             }
 

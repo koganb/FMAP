@@ -14,14 +14,15 @@ public class POPStep implements Step {
     private int index;
     
     private int timeStep;
-    
-    POPStep(POPAction act, int i, String ag) {
+
+    public POPStep(POPAction act, int i, String ag) {
         this.action = act;
         this.agent = ag;
         this.index = i;      
         this.timeStep = -1;
     }
 
+    @Override
     public POPAction getAction()       {return this.action;}
     //public Action getGroundedAction()  {return this.action.getOperator();}
     public String getAgent()           {return this.agent;}
@@ -42,6 +43,7 @@ public class POPStep implements Step {
         return params;
     }*/
 
+    @Override
     public POPPrecEff[] getPreconditions() {
         int i;
         POPPrecEff[] precs = new POPPrecEff[this.getAction().getPrecs().size()];
@@ -51,7 +53,8 @@ public class POPStep implements Step {
 
         return precs;
     }
-    
+
+    @Override
     public POPPrecEff[] getEffects() {
         int i;
         POPPrecEff[] effs = new POPPrecEff[this.getAction().getEffects().size()];
@@ -71,6 +74,7 @@ public class POPStep implements Step {
 
         return res;
     }
+
 
     @Override
     public int getTimeStep() {

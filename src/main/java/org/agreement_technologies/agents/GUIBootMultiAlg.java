@@ -1,5 +1,6 @@
 package org.agreement_technologies.agents;
 
+import com.google.common.collect.Sets;
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_heuristic.HeuristicFactory;
 import org.agreement_technologies.common.map_negotiation.NegotiationFactory;
@@ -21,14 +22,16 @@ import javax.swing.event.ChangeListener;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.agreement_technologies.agents.PlanningUtils.filterDuplicatePlans;
 
 /**
  * @author Oscar
  */
 public class GUIBootMultiAlg extends JFrame {
+
 
     private static final long serialVersionUID = -5039304283931395812L;
     private static final String[] heuristics = {"Breadth", "FF", "DTG", "Landmarks", "Land.Inc."};
@@ -36,7 +39,7 @@ public class GUIBootMultiAlg extends JFrame {
     private static Logger logger = LoggerFactory.getLogger(LinearlizationUtils.class);
     //private static final String[] searchMethods = {"Speed", "Balanced", "Quality"};
     private final Object monitor = new Object();
-    private final Map<Integer, Collection<Plan>> solutionMap = new ConcurrentHashMap<>();
+    private final Map<Integer, Set<Plan>> solutionMap = new ConcurrentHashMap<>();
     private String startDir;    // Start folder for selecting files
     private String qpidHost;
     private int timeout;
@@ -96,6 +99,10 @@ public class GUIBootMultiAlg extends JFrame {
         setSize(590, 405);
 
         setLocationRelativeTo(null);
+    }
+
+    static IntStream revRange(int from, int to) {
+        return IntStream.range(from, to).map(i -> to - i + from - 1);
     }
 
     public void saveStartDir() {
@@ -545,10 +552,10 @@ public class GUIBootMultiAlg extends JFrame {
 
         IntStream.range(0, planningTask.getAllGoals().length).
                 forEach(goalIndex -> {
-                    solutionMap.put(goalIndex, new ConcurrentLinkedQueue<>());
+                    solutionMap.put(goalIndex, Collections.synchronizedSet(new HashSet<>()));
                 });
 
-        IntStream.range(1, (int) Math.pow(2, model.size())).
+        revRange(1, (int) Math.pow(2, model.size())).  //reverse order
                 mapToObj(i -> String.format("%0" + model.size() + "d",
                         Integer.parseInt(Integer.toBinaryString(i))).split("")).
                 map(i -> Arrays.stream(i).map(j -> j.equals("1"))).
@@ -621,6 +628,14 @@ public class GUIBootMultiAlg extends JFrame {
                             });
                 });
 
+        solutionMap.entrySet().stream().
+                forEach(p -> solutionMap.put(p.getKey(), filterDuplicatePlans(p.getValue())));
+
+        Set<List<Plan>> partialPlanCartesianProduct =
+                Sets.cartesianProduct(solutionMap.values().stream().collect(Collectors.toList()));
+
+        partialPlanCartesianProduct.stream().forEach(list ->
+                PlanningUtils.mergePlans(list.toArray(new Plan[0])));
 
         jButtonStart.setEnabled(false);
 
