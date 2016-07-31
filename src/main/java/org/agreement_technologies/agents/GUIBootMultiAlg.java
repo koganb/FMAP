@@ -588,7 +588,7 @@ public class GUIBootMultiAlg extends JFrame {
                                         try {
                                             ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
                                                     agentList, false, sameObjects, trace.isSelected(), h, finalSearchPerformance, n,
-                                                    isAnytime, timeout, selectedAlg, goalIndex, monitor, removeAgents, solutionMap);
+                                                    isAnytime, 60, selectedAlg, goalIndex, monitor, removeAgents, solutionMap);
                                         } catch (Exception e) {
                                             logger.error(e.getMessage(), e);
                                             return;
@@ -612,7 +612,7 @@ public class GUIBootMultiAlg extends JFrame {
 
                                 synchronized (monitor) {
                                     try {
-                                        monitor.wait();
+                                        monitor.wait(100000);
                                         Thread.sleep(1000);  //sleep one second to finish commumication
                                     } catch (InterruptedException e) {
                                         logger.info("Got interrupt on monitor");
@@ -622,6 +622,7 @@ public class GUIBootMultiAlg extends JFrame {
 
                                 //shutdown agents
                                 for (PlanningAgent ag : MAPboot.planningAgents) {
+                                    ag.interrupt();
                                     ag.shutdown();
                                 }
 
@@ -634,12 +635,18 @@ public class GUIBootMultiAlg extends JFrame {
         Set<List<Plan>> partialPlanCartesianProduct =
                 Sets.cartesianProduct(solutionMap.values().stream().collect(Collectors.toList()));
 
+        System.out.println("Starting plan merging...");
+        logger.debug("merging list size {}", partialPlanCartesianProduct.size());
+
+
         partialPlanCartesianProduct.stream().forEach(list ->
                 PlanningUtils.mergePlans(list.toArray(new Plan[0])));
 
-        jButtonStart.setEnabled(false);
-
-        setState(ICONIFIED);
+        System.out.println("Finishing plan merging...");
+        System.exit(0);
+//        jButtonStart.setEnabled(false);
+//
+//        setState(ICONIFIED);
 
     }
 

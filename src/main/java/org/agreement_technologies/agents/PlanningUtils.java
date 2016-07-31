@@ -6,6 +6,8 @@ import org.agreement_technologies.service.map_planner.POPAction;
 import org.agreement_technologies.service.map_planner.POPStep;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -19,6 +21,8 @@ import static java.util.stream.Collectors.summarizingInt;
  * Created by rachel on 7/27/2016.
  */
 public class PlanningUtils {
+
+    private static Logger logger = LoggerFactory.getLogger(PlanningUtils.class);
     public static Set<Plan> filterDuplicatePlans(Set<Plan> plans) {
         /**
          * implements custom equals and hash function for Plan
@@ -60,6 +64,7 @@ public class PlanningUtils {
 
 
     public static void mergePlans(Plan... plans) {
+        logger.debug("merge plans {}", (Object) plans);
 
         HashSet<String> initialFinalStepNames = new HashSet<>(Arrays.asList("Initial", "Final"));
         final List<Step> zipStepList = new ArrayList<>();
@@ -73,6 +78,8 @@ public class PlanningUtils {
                         }
                     }
                 });
+
+        logger.debug("zip list {}", zipStepList);
 
         Step initialStep = mergeInitialFinalSteps(0, "Initial", plans);
         Step finalStep = mergeInitialFinalSteps(1, "Final", plans);
@@ -92,6 +99,9 @@ public class PlanningUtils {
                 return false;
             }
         }).collect(Collectors.toList());
+
+        logger.debug("applicableStepsList {}", applicableStepsList);
+
 
         if (applicableStepsList.stream().anyMatch(p -> p.getActionName().equals("Final"))) {
             System.out.println("Solution found");
