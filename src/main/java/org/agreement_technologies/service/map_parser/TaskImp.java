@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Implementation of an ungrounded planning task Stores the problem and domain
@@ -21,30 +22,30 @@ import java.util.stream.Collectors;
  * @since Mar 2011
  */
 public class TaskImp implements Task {
-    static final int OBJECT_TYPE = 0;	// Index of the predefined type 'object'
-    static final int BOOLEAN_TYPE = 1;	// Index of the predefined type 'boolean'
-    static final int AGENT_TYPE = 2;	// Index of the predefined type 'agent'
-    static final int NUMBER_TYPE = 3;	// Index of the predefined type 'number'
-    static final int TRUE_VALUE = 0;	// Index of the predefined object 'true'
-    static final int FALSE_VALUE = 1;	// Index of the predefined object 'false'
+    static final int OBJECT_TYPE = 0;    // Index of the predefined type 'object'
+    static final int BOOLEAN_TYPE = 1;    // Index of the predefined type 'boolean'
+    static final int AGENT_TYPE = 2;    // Index of the predefined type 'agent'
+    static final int NUMBER_TYPE = 3;    // Index of the predefined type 'number'
+    static final int TRUE_VALUE = 0;    // Index of the predefined object 'true'
+    static final int FALSE_VALUE = 1;    // Index of the predefined object 'false'
     private static Logger logger = LoggerFactory.getLogger(TaskImp.class);
-    String domainName;						// Domain name
-    String problemName;						// Problem name
-    ArrayList<String> requirements;			// Requirements list
+    String domainName;                        // Domain name
+    String problemName;                        // Problem name
+    ArrayList<String> requirements;            // Requirements list
     List<Type> types;                // Variable types
     List<Value> values;                // Objects and constants
-    ArrayList<Variable> predicates;			// Predicates
-    ArrayList<Function> functions;			// Functions and multi-functions
-    ArrayList<Operator> operators;			// Operators list
+    ArrayList<Variable> predicates;            // Predicates
+    ArrayList<Function> functions;            // Functions and multi-functions
+    ArrayList<Operator> operators;            // Operators list
     ArrayList<SharedData> sharedData;                   // Shared predicates/functions
     List<Assignment> init;                // Init section
-    ArrayList<Operator> beliefs;			// Belief rules
-    ArrayList<Assignment> gGoals;			// Global goals
-    ArrayList<PreferenceImp> preferences;		// Preferences
+    ArrayList<Operator> beliefs;            // Belief rules
+    ArrayList<Assignment> gGoals;            // Global goals
+    ArrayList<PreferenceImp> preferences;        // Preferences
     ArrayList<CongestionImp> congestions;                  // Congestions
     MetricImp metric;                                   // Metric
-    double selfInterest;				// Self-interest level
-    double metricThreshold;				// Metric threshold
+    double selfInterest;                // Self-interest level
+    double metricThreshold;                // Metric threshold
     private int goalIndex;
 
     /**
@@ -52,16 +53,16 @@ public class TaskImp implements Task {
      */
     public TaskImp() {
         types = new ArrayList<Type>();
-        types.add(new Type("object"));			// Predefined type
-        types.add(new Type("boolean"));			// Predefined type
-        types.add(new Type("agent"));			// Predefined type
-        types.add(new Type("number"));			// Predefined type
+        types.add(new Type("object"));            // Predefined type
+        types.add(new Type("boolean"));            // Predefined type
+        types.add(new Type("agent"));            // Predefined type
+        types.add(new Type("number"));            // Predefined type
         requirements = new ArrayList<String>();
         values = new ArrayList<Value>();
-        Value bv = new Value("true");			// Predefined object "true"
+        Value bv = new Value("true");            // Predefined object "true"
         bv.types.add(types.get(BOOLEAN_TYPE));
         values.add(bv);
-        bv = new Value("false");				// Predefined object "false"
+        bv = new Value("false");                // Predefined object "false"
         bv.types.add(types.get(BOOLEAN_TYPE));
         values.add(bv);
         predicates = new ArrayList<Variable>();
@@ -81,7 +82,7 @@ public class TaskImp implements Task {
     /**
      * Adds a planning requirement
      *
-     * @param reqName	Requirement name
+     * @param reqName Requirement name
      */
     public void addRequirement(String reqName) {
         if (!requirements.contains(reqName)) {
@@ -92,7 +93,7 @@ public class TaskImp implements Task {
     /**
      * Checks whether the variable is already defined
      *
-     * @param v	Variable
+     * @param v Variable
      * @return True if the variable is already defined
      */
     public boolean existVariable(Variable v) {
@@ -323,31 +324,31 @@ public class TaskImp implements Task {
      * Returns a list of parsed conditions
      *
      * @param cond Stored condition
-     * @param cmp True if it is a comparison, false for assignments
+     * @param cmp  True if it is a comparison, false for assignments
      * @return Parsed conditions
      */
     private TaskTypes.ConditionImp[] getOperatorCondition(ArrayList<OperatorCondition> cond, boolean cmp) {
         int numConditions = 0;
-        for (OperatorCondition oc: cond) {
+        for (OperatorCondition oc : cond) {
             if (oc.type != OperatorConditionType.CT_INCREASE)
                 numConditions++;
         }
         TaskTypes.ConditionImp[] res = new TaskTypes.ConditionImp[numConditions];
         numConditions = 0;
-        for (OperatorCondition oc: cond) {
+        for (OperatorCondition oc : cond) {
             if (oc.type == OperatorConditionType.CT_INCREASE) continue;
             Variable varCond = null;
             Function fncCond = null;
             int index = this.predicates.indexOf(new Variable(oc.var.name));
-            if (index == -1) {	// Function
+            if (index == -1) {    // Function
                 index = this.functions.indexOf(new Function(new Variable(oc.var.name), false));
                 fncCond = this.functions.get(index);
-            } else {			// Predicate
+            } else {            // Predicate
                 varCond = this.predicates.get(index);
             }
             res[numConditions] = new TaskTypes.ConditionImp();
             switch (oc.type) {
-                case CT_NONE:	// Predicate
+                case CT_NONE:    // Predicate
                     if (cmp) {
                         res[numConditions].type = TaskTypes.ConditionImp.EQUAL;
                     } else {
@@ -388,7 +389,7 @@ public class TaskImp implements Task {
                     res[numConditions].fnc.parameters[p].types[t] = param.types.get(t).name;
                 }
             }
-            if (varCond != null) {	// Predicate
+            if (varCond != null) {    // Predicate
                 res[numConditions].fnc.domain = new String[1];
                 res[numConditions].fnc.domain[0] = this.types.get(BOOLEAN_TYPE).name;
                 if (oc.neg) {
@@ -396,7 +397,7 @@ public class TaskImp implements Task {
                 } else {
                     res[numConditions].value = this.values.get(TRUE_VALUE).name;
                 }
-            } else {				// Function
+            } else {                // Function
                 res[numConditions].fnc.domain = new String[fncCond.domain.size()];
                 for (int t = 0; t < res[numConditions].fnc.domain.length; t++) {
                     res[numConditions].fnc.domain[t] = fncCond.domain.get(t).name;
@@ -431,10 +432,10 @@ public class TaskImp implements Task {
                     sd[i].fnc.parameters[p].types[t] = param.types.get(t).name;
                 }
             }
-            if (sData.fnc == null) {	// Predicate
+            if (sData.fnc == null) {    // Predicate
                 sd[i].fnc.domain = new String[1];
                 sd[i].fnc.domain[0] = this.types.get(BOOLEAN_TYPE).name;
-            } else {					// Function
+            } else {                    // Function
                 sd[i].fnc.domain = new String[sData.fnc.domain.size()];
                 for (int t = 0; t < sd[i].fnc.domain.length; t++) {
                     sd[i].fnc.domain[t] = sData.fnc.domain.get(t).name;
@@ -501,7 +502,7 @@ public class TaskImp implements Task {
      * Returns the list of (global or private) goals
      *
      * @param global True to retrieve the global goals, false to retrieve the
-     * private goals
+     *               private goals
      * @return Array of goals (facts)
      */
 
@@ -523,9 +524,21 @@ public class TaskImp implements Task {
 
     @Override
     public Fact[] getGoals() {
-        Fact[] goals = Arrays.copyOfRange(getAllGoals(), this.goalIndex, this.goalIndex + 1);
-        logger.info("goalIndex {}, goals : {}", this.goalIndex, (Object) goals);
-        return goals;
+        Fact[] allGoals = getAllGoals();
+
+        List<Boolean> goalContain =
+                Arrays.stream(String.format("%0" + allGoals.length + "d",
+                        Integer.parseInt(Integer.toBinaryString(goalIndex))).split("")).
+                        map(j -> j.equals("1")).
+                        collect(Collectors.toList());
+
+        List<Fact> factList = new ArrayList<>();
+        IntStream.range(0, allGoals.length).
+                filter(goalContain::get).
+                forEach(i -> factList.add(allGoals[i]));
+
+        logger.info("goalIndex {}, goals : {}", this.goalIndex, factList);
+        return factList.toArray(new Fact[factList.size()]);
     }
 
     /**
@@ -602,14 +615,14 @@ public class TaskImp implements Task {
 
     private TaskTypes.NumericEffectImp[] getOperatorNumericEffects(ArrayList<OperatorCondition> eff) {
         int numConditions = 0;
-        for (OperatorCondition e: eff) {
+        for (OperatorCondition e : eff) {
             if (e.type == OperatorConditionType.CT_INCREASE)
                 numConditions++;
         }
         TaskTypes.NumericEffectImp[] res = new TaskTypes.NumericEffectImp[numConditions];
         if (numConditions == 0) return res;
         numConditions = 0;
-        for (OperatorCondition e: eff) {
+        for (OperatorCondition e : eff) {
             if (e.type != OperatorConditionType.CT_INCREASE) continue;
             res[numConditions] = new TaskTypes.NumericEffectImp(NumericEffect.INCREASE);
             res[numConditions].var = getOperatorNumericVariable(e.var);
@@ -642,13 +655,27 @@ public class TaskImp implements Task {
     private TaskTypes.NumericExpressionImp getOperatorNumericEffectsExpression(NumericExpressionImp exp) {
         int type = -1;
         switch (exp.type) {
-            case NET_NUMBER: type = org.agreement_technologies.common.map_parser.NumericExpression.NUMBER; break;
-            case NET_VAR:    type = org.agreement_technologies.common.map_parser.NumericExpression.VARIABLE; break;
-            case NET_ADD:    type = org.agreement_technologies.common.map_parser.NumericExpression.ADD; break;
-            case NET_DEL:    type = org.agreement_technologies.common.map_parser.NumericExpression.DEL; break;
-            case NET_PROD:   type = org.agreement_technologies.common.map_parser.NumericExpression.PROD; break;
-            case NET_DIV:    type = org.agreement_technologies.common.map_parser.NumericExpression.DIV; break;
-            case NET_USAGE:  type = org.agreement_technologies.common.map_parser.NumericExpression.USAGE; break;
+            case NET_NUMBER:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.NUMBER;
+                break;
+            case NET_VAR:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.VARIABLE;
+                break;
+            case NET_ADD:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.ADD;
+                break;
+            case NET_DEL:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.DEL;
+                break;
+            case NET_PROD:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.PROD;
+                break;
+            case NET_DIV:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.DIV;
+                break;
+            case NET_USAGE:
+                type = org.agreement_technologies.common.map_parser.NumericExpression.USAGE;
+                break;
         }
         TaskTypes.NumericExpressionImp e = new TaskTypes.NumericExpressionImp(type);
         if (exp.type == NumericExpressionType.NET_NUMBER) {
@@ -673,7 +700,7 @@ public class TaskImp implements Task {
     @Override
     public NumericFact[] getInitialNumericFacts() {
         ArrayList<NumericFact> res = new ArrayList<>();
-        for (Assignment a: init) 
+        for (Assignment a : init)
             if (a.isNumeric) res.add(a);
         return res.toArray(new NumericFact[res.size()]);
     }
@@ -697,7 +724,7 @@ public class TaskImp implements Task {
 
 
     }
-    
+
     /**
      * ***********************************************************
      */
@@ -775,8 +802,8 @@ public class TaskImp implements Task {
      */
     public class Type {
 
-        String name;						// Name of the type
-        ArrayList<Type> parentTypes;		// Parent types
+        String name;                        // Name of the type
+        ArrayList<Type> parentTypes;        // Parent types
 
         /**
          * Constructor
@@ -791,8 +818,8 @@ public class TaskImp implements Task {
         /**
          * Add a parent type to the current type
          *
-         * @param parent	Name of the parent type
-         * @param syn	Syntactic analyzer
+         * @param parent Name of the parent type
+         * @param syn    Syntactic analyzer
          * @throws ParseException if the parent type is repeated
          */
         public void addParentType(Type parent, SynAnalyzer syn) throws ParseException {
@@ -819,8 +846,8 @@ public class TaskImp implements Task {
         /**
          * Checks if this type is compatible with the given type
          *
-         * @param tp	Given type
-         * @return	True if this type is compatible with the given type
+         * @param tp Given type
+         * @return True if this type is compatible with the given type
          */
         public boolean isCompatible(Type tp) {
             boolean comp = equals(tp);
@@ -860,9 +887,9 @@ public class TaskImp implements Task {
      * PDDL objects and constants. Also used for variables in parameters
      */
     public class Value {
-        String name;				// Object name
+        String name;                // Object name
         ArrayList<Type> types;                  // Object types
-        boolean isVariable;			// Variable in a parameter list
+        boolean isVariable;            // Variable in a parameter list
 
         /**
          * Constructor
@@ -891,8 +918,8 @@ public class TaskImp implements Task {
         /**
          * Adds a type to this object
          *
-         * @param type	New type
-         * @param syn	Syntactic analyzer
+         * @param type New type
+         * @param syn  Syntactic analyzer
          * @throws ParseException If the type is redefined for this object
          */
         public void addType(Type type, SynAnalyzer syn) throws ParseException {
@@ -959,11 +986,12 @@ public class TaskImp implements Task {
      * Predicates
      */
     public class Variable implements CongestionFluent {
-        String name;				// Predicate name
-        ArrayList<Value> params;	// Parameters
+        String name;                // Predicate name
+        ArrayList<Value> params;    // Parameters
 
         /**
          * Constructor
+         *
          * @param name Name of the predicate
          */
         public Variable(String name) {
@@ -1010,14 +1038,14 @@ public class TaskImp implements Task {
      */
     public class Function {
 
-        Variable var;				// Variable
-        ArrayList<Type> domain;		// Domain
-        boolean multiFunction;		// Multi-function or function
+        Variable var;                // Variable
+        ArrayList<Type> domain;        // Domain
+        boolean multiFunction;        // Multi-function or function
 
         /**
          * Constructor
          *
-         * @param v Variable
+         * @param v             Variable
          * @param multifunction True if this is a multi-function
          */
         public Function(Variable v, boolean multifunction) {
@@ -1037,7 +1065,7 @@ public class TaskImp implements Task {
         /**
          * Sets the function domain
          *
-         * @param domain	Function domain
+         * @param domain Function domain
          */
         public void setDomain(ArrayList<Type> domain) {
             for (Type t : domain) {
@@ -1048,7 +1076,7 @@ public class TaskImp implements Task {
         /**
          * Add a type to the domain
          *
-         * @param syn Syntactic token
+         * @param syn      Syntactic token
          * @param typeName Type name
          * @throws ParseException If the type is not valid
          */
@@ -1066,12 +1094,12 @@ public class TaskImp implements Task {
 
         boolean isNumeric() {
             Type number = types.get(NUMBER_TYPE);
-            for (Type t: domain)
+            for (Type t : domain)
                 if (t.isCompatible(number)) return true;
             return false;
         }
     }
-    
+
     public class NumericExpressionImp implements NumericExpression {
         NumericExpressionType type;
         double value;                       // if type == NET_NUMBER
@@ -1098,13 +1126,20 @@ public class TaskImp implements Task {
         @Override
         public int getType() {
             switch (type) {
-                case NET_NUMBER:        return NUMBER;
-                case NET_VAR:           return VARIABLE;
-                case NET_ADD:           return ADD;
-                case NET_DEL:           return DEL;
-                case NET_PROD:          return PROD;
-                case NET_DIV:           return DIV;
-                default:                return USAGE;
+                case NET_NUMBER:
+                    return NUMBER;
+                case NET_VAR:
+                    return VARIABLE;
+                case NET_ADD:
+                    return ADD;
+                case NET_DEL:
+                    return DEL;
+                case NET_PROD:
+                    return PROD;
+                case NET_DIV:
+                    return DIV;
+                default:
+                    return USAGE;
             }
         }
 
@@ -1133,21 +1168,21 @@ public class TaskImp implements Task {
             return var;
         }
     }
-    
+
     /**
      * Operator condition
      */
     public class OperatorCondition {
-        OperatorConditionType type;		// Condition type
+        OperatorConditionType type;        // Condition type
         boolean neg;                            // True if this condition is negated
-        Variable var;				// Variable
-        Value value;				// Value
+        Variable var;                // Variable
+        Value value;                // Value
         NumericExpressionImp exp;                  // Only for INCREASE operations
 
         /**
          * Constructor
          *
-         * @param type	Condition type
+         * @param type Condition type
          */
         public OperatorCondition(OperatorConditionType type) {
             this.type = type;
@@ -1160,11 +1195,11 @@ public class TaskImp implements Task {
      */
     public class Operator {
 
-        String name;						// Operator name
-        ArrayList<Value> params;			// Parameters
-        ArrayList<OperatorCondition> prec;	// Preconditions
-        ArrayList<OperatorCondition> eff;	// Effects
-        int preference;						// Preference value (-1 if no set)
+        String name;                        // Operator name
+        ArrayList<Value> params;            // Parameters
+        ArrayList<OperatorCondition> prec;    // Preconditions
+        ArrayList<OperatorCondition> eff;    // Effects
+        int preference;                        // Preference value (-1 if no set)
 
         /**
          * Constructor
@@ -1193,14 +1228,14 @@ public class TaskImp implements Task {
      */
     public class SharedData {
 
-        Variable var;				// Predicate
-        Function fnc;				// Function
+        Variable var;                // Predicate
+        Function fnc;                // Function
         List<Value> agents;    // Agents that can observe the predicate/function
 
         /**
          * Constructor of a shared predicate
          *
-         * @param var	Predicate
+         * @param var Predicate
          */
         public SharedData(Variable var) {
             this.var = var;
@@ -1211,7 +1246,7 @@ public class TaskImp implements Task {
         /**
          * Constructor of a shared function
          *
-         * @param fnc	Function
+         * @param fnc Function
          */
         public SharedData(Function fnc) {
             this.var = null;
@@ -1224,11 +1259,11 @@ public class TaskImp implements Task {
      * A variable assignment in the init or goal section
      */
     public class Assignment implements NumericFact {
-        Variable var;				// Predicate if this is a literal
-        Function fnc;				// Function if this is a variable
+        Variable var;                // Predicate if this is a literal
+        Function fnc;                // Function if this is a variable
         ArrayList<Value> params;                // Predicate parameters
         ArrayList<Value> values;                // Values assigned. For literals, a true value is inserted
-        boolean neg;				// True if the assignment is negated
+        boolean neg;                // True if the assignment is negated
         boolean isNumeric;                      // Only for numeric assignments
         double value;
 
@@ -1298,9 +1333,9 @@ public class TaskImp implements Task {
         public static final int MT_NUMBER = 3;
         public static final int MT_TOTAL_TIME = 4;
         int metricType;
-        double number;			// if metricType = MT_NUMBER
-        String preference;		// if metricType = MT_PREFERENCE
-        ArrayList<MetricImp> term;	// otherwise
+        double number;            // if metricType = MT_NUMBER
+        String preference;        // if metricType = MT_PREFERENCE
+        ArrayList<MetricImp> term;    // otherwise
 
         public MetricImp(String id, SynAnalyzer syn) throws ParseException {
             metricType = MT_PREFERENCE;
@@ -1392,9 +1427,12 @@ public class TaskImp implements Task {
         @Override
         public int getType() {
             switch (type) {
-                case CUT_OR:    return OR;
-                case CUT_AND:   return AND;
-                default:        return ACTION;
+                case CUT_OR:
+                    return OR;
+                case CUT_AND:
+                    return AND;
+                default:
+                    return ACTION;
             }
         }
 
@@ -1445,12 +1483,18 @@ public class TaskImp implements Task {
         @Override
         public int getConditionType() {
             switch (condition) {
-                case CT_EQUAL:      return EQUAL;
-                case CT_GREATER:    return GREATER;
-                case CT_GREATER_EQ: return GREATER_EQ;
-                case CT_LESS:       return LESS;
-                case CT_LESS_EQ:    return LESS_EQ;
-                default:            return DISTINCT;
+                case CT_EQUAL:
+                    return EQUAL;
+                case CT_GREATER:
+                    return GREATER;
+                case CT_GREATER_EQ:
+                    return GREATER_EQ;
+                case CT_LESS:
+                    return LESS;
+                case CT_LESS_EQ:
+                    return LESS_EQ;
+                default:
+                    return DISTINCT;
             }
         }
 
@@ -1503,9 +1547,9 @@ public class TaskImp implements Task {
         }
 
         Value getParamOrVar(String name) {
-            for (Value v: params)
+            for (Value v : params)
                 if (v.name.equalsIgnoreCase(name)) return v;
-            for (Value v: vars)
+            for (Value v : vars)
                 if (v.name.equalsIgnoreCase(name)) return v;
             return null;
         }

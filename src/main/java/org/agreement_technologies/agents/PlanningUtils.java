@@ -1,10 +1,12 @@
 package org.agreement_technologies.agents;
 
+import com.google.common.collect.Sets;
 import org.agreement_technologies.common.map_planner.Plan;
 import org.agreement_technologies.common.map_planner.Step;
 import org.agreement_technologies.service.map_planner.POPAction;
 import org.agreement_technologies.service.map_planner.POPStep;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +18,7 @@ import java.util.stream.IntStream;
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.summarizingInt;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Created by rachel on 7/27/2016.
@@ -23,6 +26,7 @@ import static java.util.stream.Collectors.summarizingInt;
 public class PlanningUtils {
 
     private static Logger logger = LoggerFactory.getLogger(PlanningUtils.class);
+
     public static Set<Plan> filterDuplicatePlans(Set<Plan> plans) {
         /**
          * implements custom equals and hash function for Plan
@@ -62,6 +66,39 @@ public class PlanningUtils {
 
     }
 
+    public static List<Set<Integer>> getPlanCombinations(Integer[] keys, int goalSize, int agentSize) {
+        logger.info("getPlanCombinations keys {}, goalSize {}, agentSize {}", keys, goalSize, agentSize);
+
+        String[] zeroArray = new String[goalSize];
+        String[] onesArray = new String[goalSize];
+
+        List<Set<Integer>> allPossibleSums =
+                PlanningUtils.findAllSums(keys, 0, new HashSet<>(), (int) Math.pow(2, goalSize) - 1).stream().
+                        filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList());
+
+
+        List<Set<Integer>> allPlanCombinations = allPossibleSums.stream().
+                //leave only combinations which cover all goals
+                        filter(s -> {
+                    Arrays.fill(zeroArray, "0");
+                    Arrays.fill(onesArray, "1");
+                    String[] reduceResult = s.stream().map(i -> String.format("%0" + goalSize + "d",
+                            Integer.parseInt(Integer.toBinaryString(i))).split("")).
+                            reduce(zeroArray,
+                                    (a, b) -> {
+                                        for (int i = 0; i < a.length; i++) {
+                                            a[i] = Integer.toString(Integer.parseInt(b[i]) + Integer.parseInt(a[i]));
+                                        }
+                                        return a;
+                                    });
+                    return Arrays.equals(reduceResult, onesArray);
+                }).
+                //number of agents should be equal or greater of number of goals
+                        filter(s -> s.size() <= agentSize).collect(toList());
+        logger.info("All plan combinations {}", allPlanCombinations);
+        return allPlanCombinations;
+
+    }
 
     public static void mergePlans(Plan... plans) {
         logger.debug("merge plans {}", (Object) plans);
@@ -89,11 +126,12 @@ public class PlanningUtils {
 
         Map<String, String> conditionMap = new HashMap<>();
         List<Step> applicableStepsList = allSteps.stream().filter(step -> {
-            if (step.getActionName().equals("Initial") ||
+            if (step.getActionName().equals("Initial") || (ArrayUtils.isNotEmpty(step.getPreconditions()) &&
                     Arrays.stream(step.getPreconditions()).allMatch(
-                            precondition -> Objects.equals(conditionMap.get(precondition.getFunction().toKey()), precondition.getValue()))) {
-                Arrays.stream(step.getEffects()).forEach(effect ->
-                        conditionMap.put(effect.getFunction().toKey(), effect.getValue()));
+                            precondition -> precondition.getFunction() != null && Objects.equals(conditionMap.get(precondition.getFunction().toKey()), precondition.getValue())))) {
+                Arrays.stream(step.getEffects()).forEach(effect -> {
+                    conditionMap.put(effect.getFunction().toKey(), effect.getValue());
+                });
                 return true;
             } else {
                 return false;
@@ -134,17 +172,19 @@ public class PlanningUtils {
             final int[] stageIndex = {0};
             final long numberOfActions = agentToStepMap.values().stream().map(List::size).collect(summarizingInt(Integer::intValue)).getSum();
 
-            while (agentToStepMap.values().stream().map(List::size).collect(summarizingInt(Integer::intValue)).getMax() > 0) {
+            int MAX_STEP_SIZE = 20;
+            while (agentToStepMap.values().stream().map(List::size).collect(summarizingInt(Integer::intValue)).getMax() > 0 &&
+                    stageIndex[0] < MAX_STEP_SIZE) {
                 System.out.println("Stage: " + stageIndex[0]);
 
                 agentToStepMap.entrySet().stream().forEach(
                         entry -> {
                             if (entry.getValue().size() > 0 &&
                                     Arrays.stream(entry.getValue().get(0).getPreconditions()).allMatch(
-                                            precondition -> Objects.equals(stepConditionMap.get(precondition.getFunction().toKey()), precondition.getValue()))) {
-                                Arrays.stream(entry.getValue().get(0).getEffects()).forEach(effect ->
-                                        currentConditionMap.put(effect.getFunction().toKey(), effect.getValue()));
-
+                                            precondition -> (precondition.getFunction() != null && Objects.equals(stepConditionMap.get(precondition.getFunction().toKey()), precondition.getValue())))) {
+                                Arrays.stream(entry.getValue().get(0).getEffects()).forEach(effect -> {
+                                    currentConditionMap.put(effect.getFunction().toKey(), effect.getValue());
+                                });
                                 System.out.println(format("Agent: %-13s, Action %s", entry.getKey(), entry.getValue().get(0).getAction()));
                                 entry.getValue().remove(0);
                             }
@@ -154,14 +194,20 @@ public class PlanningUtils {
                 stepConditionMap.clear();
                 stepConditionMap.putAll(currentConditionMap);
             }
-            System.out.println(format("Number of stages:  %s", --stageIndex[0]));
-            System.out.println(format("Number of actions: %s", numberOfActions));
-            System.out.println("==============================================");
+
+            if (stageIndex[0] == MAX_STEP_SIZE) {
+                System.out.println("Plan merging failed!!!");
+            } else {
+                System.out.println(format("Number of stages:  %s", --stageIndex[0]));
+                System.out.println(format("Number of actions: %s", numberOfActions));
+                System.out.println("==============================================");
+            }
 
         }
     }
 
     private static Step mergeInitialFinalSteps(int stepIndex, String actionName, Plan... plans) {
+        logger.debug("merging action {}", actionName);
         return Arrays.stream(plans).
                 //filter initial or final steps
                         flatMap(p -> p.getStepsArray().stream().filter(s -> s.getActionName().equals(actionName))).
@@ -169,6 +215,8 @@ public class PlanningUtils {
                                         new ArrayList<>(), new ArrayList<>()), stepIndex, null),
                                 (a, b) -> {
                                     //add preconditions and effects
+
+                                    logger.debug("adding precondition {}, effects {}", b.getAction().getPrecs(), b.getAction().getEffects());
                                     a.getAction().addPreconditionsAndEffects(
                                             b.getAction().getPrecs(),
                                             b.getAction().getEffects());
@@ -176,4 +224,26 @@ public class PlanningUtils {
                                 });
     }
 
+
+    static List<Optional<Set<Integer>>> findAllSums(Integer[] arrayOfNumbers, int index, Set<Integer> currentRes, int maxRes) {
+        ArrayList<Optional<Set<Integer>>> res = new ArrayList<>();
+        if (index == arrayOfNumbers.length) {
+            if (currentRes.size() > 0) {
+                res.add(Optional.of(currentRes));
+            }
+            return res;
+        }
+
+        if (currentRes.stream().collect(summarizingInt(Integer::intValue)).getSum() > maxRes) {
+            res.add(Optional.empty());
+            return res;
+        }
+
+        Set<Integer> currentResNew = Sets.newHashSet(currentRes);
+        currentResNew.add(arrayOfNumbers[index]);
+        res.addAll(findAllSums(arrayOfNumbers, index + 1, currentResNew, maxRes));
+        res.addAll(findAllSums(arrayOfNumbers, index + 1, new HashSet<>(currentRes), maxRes));
+
+        return res;
+    }
 }
