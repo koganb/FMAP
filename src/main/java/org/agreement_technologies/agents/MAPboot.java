@@ -82,7 +82,7 @@ public class MAPboot {
                     PlanningAgent ag = new PlanningAgent(args[n].toLowerCase(), args[n + 1], args[n + 2],
                             agList, false, GroundedTask.SAME_OBJECTS_REP_PARAMS, false,
                             HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
+                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
                     planningAgents.add(ag);
                     n += 3;
                 }
@@ -116,7 +116,7 @@ public class MAPboot {
             PlanningAgent ag = new PlanningAgent(agentName.toLowerCase(), domainFile,
                     problemFile, agList, true, GroundedTask.SAME_OBJECTS_REP_PARAMS,
                     false, HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
+                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
             MAPboot.planningAgents.add(ag);
             ag.start();
         } catch (ParseException ex) {

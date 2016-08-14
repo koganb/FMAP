@@ -9,6 +9,7 @@ import org.agreement_technologies.common.map_parser.AgentList;
 import org.agreement_technologies.common.map_planner.Plan;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -40,12 +41,14 @@ public class PlanningAgent extends Thread implements AgentListener {
      * @param monitor
      * @param removeAgents
      * @param solutionMap
+     * @param planningAgents
      * @throws Exception Platform error
      */
     public PlanningAgent(String name, String domainFile, String problemFile, AgentList agList,
                          boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
                          int negotiation, boolean isAnytime, int timeout, AlgorithmType algorithmType, int goalIndex,
-                         Object monitor, Collection<String> removeAgents, Map<Integer, Set<Plan>> solutionMap) throws IOException {
+                         Object monitor, Collection<String> removeAgents, Map<Integer, Set<Plan>> solutionMap,
+                         ArrayList<PlanningAgent> planningAgents) throws IOException {
         this.name = name.toLowerCase();
         this.monitor = monitor;
         if (isAnytime) {
@@ -54,7 +57,8 @@ public class PlanningAgent extends Thread implements AgentListener {
             this.timeout = -1;
         }
         alg = new PlanningAlgorithm(name, domainFile, problemFile, agList, waitSynch,
-                sameObjects, traceOn, h, searchPerformance, negotiation, isAnytime, algorithmType, goalIndex, removeAgents, solutionMap);
+                sameObjects, traceOn, h, searchPerformance, negotiation, isAnytime,
+                algorithmType, goalIndex, removeAgents, solutionMap, planningAgents);
     }
 
     /**

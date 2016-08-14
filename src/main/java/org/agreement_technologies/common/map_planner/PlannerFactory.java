@@ -5,6 +5,9 @@ import org.agreement_technologies.common.map_communication.PlanningAgentListener
 import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_grounding.GroundedVar;
 import org.agreement_technologies.common.map_heuristic.Heuristic;
+import org.agreement_technologies.service.map_planner.POPPrecEff;
+
+import java.util.ArrayList;
 
 
 /**
@@ -79,6 +82,9 @@ public interface PlannerFactory {
      * @return Value; null if the value is not in the agent's domain
      */
     String getValueFromCode(int code);
+
+    ArrayList<POPPrecEff> getInitialState();
+
     /**
      * Gets the global identifier of a variable from its string key
      * @param var String key of a variable
@@ -102,5 +108,7 @@ public interface PlannerFactory {
      * @param val Value
      * @return Global identifier of the value; -1 if the value is not in the agent's domain
      */
-    int getCodeFromValue(String val);    
+    int getCodeFromValue(String val);
+
+
 }

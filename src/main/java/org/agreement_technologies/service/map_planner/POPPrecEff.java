@@ -20,6 +20,7 @@ public class POPPrecEff {
     //private ArrayList<String> agents;
     //private int producers;
     private int index;
+    private String effectedAgent;
 
     public POPPrecEff(Condition cond, POPFunction var, String val, ConditionType co) {
         //, int mt, ArrayList<String> ag, int prod) {
@@ -33,6 +34,14 @@ public class POPPrecEff {
         //this.producers = prod;
         this.key = null;
         this.key = this.toKey();
+    }
+
+    public String getEffectedAgent() {
+        return effectedAgent;
+    }
+
+    public void setEffectedAgent(String effectedAgent) {
+        this.effectedAgent = effectedAgent;
     }
 
 	public int getVarCode() 							{return condition.getVarCode();} 
@@ -71,16 +80,25 @@ public class POPPrecEff {
 
         POPPrecEff that = (POPPrecEff) o;
 
-        return key != null ? key.equals(that.key) : that.key == null;
+        if (function != null ? !function.toKey().equals(that.function.toKey()) : that.function != null) {
+            return false;
+        }
+        if (key != null ? !key.equals(that.key) : that.key != null) {
+            return false;
+        }
+        return effectedAgent != null ? effectedAgent.equals(that.effectedAgent) : that.effectedAgent == null;
 
     }
 
     @Override
     public int hashCode() {
-        return key != null ? key.hashCode() : 0;
+        int result = function != null ? function.toKey().hashCode() : 0;
+        result = 31 * result + (key != null ? key.hashCode() : 0);
+        result = 31 * result + (effectedAgent != null ? effectedAgent.hashCode() : 0);
+        return result;
     }
 
-    /*
+/*
     public String[] getAgentsArray() {
         int i;
         String[] ag = new String[this.agents.size()];

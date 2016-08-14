@@ -472,7 +472,7 @@ public class GUIBoot extends JFrame {
                 GUIBoot.Agent a = (GUIBoot.Agent) model.getElementAt(i);
                 PlanningAgent ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
                         agList, false, sameObjects, trace.isSelected(), h, searchPerformance, n,
-                        isAnytime, timeout, FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap());
+                        isAnytime, timeout, FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
                 GUIPlanningAgent gui = new GUIPlanningAgent(ag);
                 gui.setLocation(x, y);
                 y += gui.getHeight();

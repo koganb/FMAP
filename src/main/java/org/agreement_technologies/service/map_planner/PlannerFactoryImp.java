@@ -41,23 +41,17 @@ public class PlannerFactoryImp implements PlannerFactory {
     private ArrayList<POPPrecEff> initialState;
     private ArrayList<POPFunction> functions;
     private ArrayList<POPAction> actions;
-
     private Hashtable<String, POPFunction> hashVars;
     private Hashtable<String, POPPrecEff> hashPrecEffs;
     private Hashtable<String, ArrayList<InternalAction>> hashRequirers;
-
     private GroundedEff[] groundedInitialState;
     private int totalThreads;
-
     private NegotiationFactory negotiationFactory;
     private SolutionChecker solutionChecker;
-
     private Hashtable<String, Integer> hashGlobalIndexesVarCode;
     private Hashtable<String, Integer> hashGlobalIndexesValueCode;
-
     private Hashtable<Integer, String> hashGlobalIndexesCodeVar;
     private Hashtable<Integer, String> hashGlobalIndexesCodeValue;
-
     private int numGlobalVariables;
 
     public PlannerFactoryImp(GroundedTask task, AgentCommunication comm) {
@@ -71,6 +65,11 @@ public class PlannerFactoryImp implements PlannerFactory {
         assignGlobalIndexes(comm);
         translateDataToAttributes(hashPrecEffs, goals, initialState,
                 openConditions, actions);
+    }
+
+    @Override
+    public ArrayList<POPPrecEff> getInitialState() {
+        return initialState;
     }
 
     public int getTotalThreads() {

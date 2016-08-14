@@ -555,13 +555,13 @@ public class GUIBootMultiAlg extends JFrame {
                     solutionMap.put(goalIndex, Collections.synchronizedSet(new HashSet<>()));
                 });
 
+
         revRange(1, (int) Math.pow(2, model.size())).  //reverse order
                 mapToObj(i -> String.format("%0" + model.size() + "d",
                 Integer.parseInt(Integer.toBinaryString(i))).split("")).
                 map(i -> Arrays.stream(i).map(j -> j.equals("1"))).
                 forEach(ar -> {
                     List<Boolean> agentInclude = ar.collect(Collectors.toList());
-                    logger.info("agentInclude {}", agentInclude);
 
                     IntStream.range(1, (int) Math.pow(2, planningTask.getAllGoals().length) - 1).
                             forEach(goalIndex -> {
@@ -574,6 +574,7 @@ public class GUIBootMultiAlg extends JFrame {
                                         .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
                                         .forEach(s -> agentList.addAgent(s, "127.0.0.1"));
 
+                                logger.info("agentList {}", agentList);
                                 Collection<String> removeAgents = IntStream.range(0, model.size())
                                         .filter(i -> !agentInclude.get(i))
                                         .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
@@ -588,7 +589,9 @@ public class GUIBootMultiAlg extends JFrame {
                                         try {
                                             ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
                                                     agentList, false, sameObjects, trace.isSelected(), h, finalSearchPerformance, n,
-                                                    isAnytime, 60, selectedAlg, goalIndex, monitor, removeAgents, solutionMap);
+                                                    isAnytime, 60, selectedAlg, goalIndex, monitor, removeAgents, solutionMap,
+                                                    MAPboot.planningAgents);
+
                                         } catch (Exception e) {
                                             logger.error(e.getMessage(), e);
                                             return;
@@ -609,16 +612,14 @@ public class GUIBootMultiAlg extends JFrame {
                                     ag.start();
                                 }
 
-
                                 synchronized (monitor) {
                                     try {
                                         monitor.wait(100000);
-                                        Thread.sleep(1000);  //sleep one second to finish commumication
+                                        Thread.sleep(500);  //sleep one second to finish commumication
                                     } catch (InterruptedException e) {
                                         logger.info("Got interrupt on monitor");
                                     }
                                 }
-
 
                                 //shutdown agents
                                 for (PlanningAgent ag : MAPboot.planningAgents) {
@@ -645,19 +646,20 @@ public class GUIBootMultiAlg extends JFrame {
         System.out.println("Starting plan merging...");
         logger.info("merging plans {}", solutionMap);
 
+
         List<Set<Integer>> allPlanCombinations =
                 PlanningUtils.getPlanCombinations(keys, planningTask.getAllGoals().length, model.size());
         logger.info("All plan combinations {}", allPlanCombinations);
 
         allPlanCombinations.stream().forEach(
                 s -> {
+                    logger.info("Plan combination {}", s);
                     List<Set<Plan>> plansToMerge = solutionMap.entrySet().stream().
                             filter(e -> s.contains(e.getKey())).
                             map(Map.Entry::getValue).collect(Collectors.toList());
                     Set<List<Plan>> partialPlanCartesianProduct = Sets.cartesianProduct(plansToMerge);
 
-                    partialPlanCartesianProduct.stream().forEach(list ->
-                            PlanningUtils.mergePlans(list.toArray(new Plan[0])));
+                    partialPlanCartesianProduct.stream().forEach(PlanningUtils::mergePlans);
                 }
 
 

@@ -43,4 +43,7 @@ public interface Plan {
 
     Plan getParentPlan();
     void printPlan(int output, String myagent, ArrayList<String> agents);
+
+    int[] linearizePlan(int mode, ArrayList<String> agents);
+
 }

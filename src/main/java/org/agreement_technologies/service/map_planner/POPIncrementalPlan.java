@@ -645,8 +645,9 @@ public class POPIncrementalPlan implements IPlan {
         }
     }
 
-    private int[] linearizePlan(int mode, ArrayList<String> agents) {
-        int[] actions = new int[this.getTotalSteps().size()];
+	@Override
+	public int[] linearizePlan(int mode, ArrayList<String> agents) {
+		int[] actions = new int[this.getTotalSteps().size()];
         int i, level, assigned; 
         boolean assign;
         ArrayList<Integer> pre;
