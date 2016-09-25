@@ -111,4 +111,6 @@ public interface PlannerFactory {
     int getCodeFromValue(String val);
 
 
+    public POPPrecEff getPOPPrecEffByKey(String key);
+
 }

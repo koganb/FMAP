@@ -12,6 +12,9 @@ import org.agreement_technologies.common.map_planner.PlannerFactory;
 import org.agreement_technologies.service.map_parser.AgentListImp;
 import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
 import org.agreement_technologies.service.map_parser.ParserImp;
+import org.agreement_technologies.service.map_planner.IPlan;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +25,9 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.agreement_technologies.agents.PlanningUtils.filterDuplicatePlans;
 
@@ -38,7 +43,7 @@ public class GUIBootMultiAlg extends JFrame {
     private static Logger logger = LoggerFactory.getLogger(GUIBootMultiAlg.class);
     //private static final String[] searchMethods = {"Speed", "Balanced", "Quality"};
     private final Object monitor = new Object();
-    private final Map<Integer, Set<Plan>> solutionMap = new ConcurrentHashMap<>();
+    private final Map<String, Set<Plan>> solutionMap = new ConcurrentHashMap<>();
     private String startDir;    // Start folder for selecting files
     private String qpidHost;
     private int timeout;
@@ -550,120 +555,110 @@ public class GUIBootMultiAlg extends JFrame {
 
         int finalSearchPerformance = searchPerformance;
 
-        IntStream.range(1, (int) Math.pow(2, planningTask.getAllGoals().length) - 1).
-                forEach(goalIndex -> {
-                    solutionMap.put(goalIndex, Collections.synchronizedSet(new HashSet<>()));
-                });
+        Stack<ImmutablePair<Set<Integer>, Set<Integer>>> unsolvedProblemsStack =
+                PlanningPrepareUtils.assignGoalsToAgents(model.size(), planningTask.getAllGoals().length);
 
+        Stack<ImmutablePair<Set<Integer>, Set<Integer>>> solvedProblemsStack = new Stack<>();
+        Stack<IPlan> solutionStack = new Stack<>();
 
-        revRange(1, (int) Math.pow(2, model.size())).  //reverse order
-                mapToObj(i -> String.format("%0" + model.size() + "d",
-                Integer.parseInt(Integer.toBinaryString(i))).split("")).
-                map(i -> Arrays.stream(i).map(j -> j.equals("1"))).
-                forEach(ar -> {
-                    List<Boolean> agentInclude = ar.collect(Collectors.toList());
+        while (!unsolvedProblemsStack.empty()) {
+            ImmutablePair<Set<Integer>, Set<Integer>> problem = unsolvedProblemsStack.pop();
+            int solutionStackStackPrev = solutionStack.size();
 
-                    IntStream.range(1, (int) Math.pow(2, planningTask.getAllGoals().length) - 1).
-                            forEach(goalIndex -> {
+            MAPboot.planningAgents = new ArrayList<>();
+            Collection<String> removeAgents = IntStream.range(0, model.size())
+                    .filter(i -> !problem.getLeft().contains(i))
+                    .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
+                    .collect(Collectors.toSet());
+            logger.info("Remove agents {}", removeAgents);
 
-                                MAPboot.planningAgents = new ArrayList<>();
+            AgentList agentList = new AgentListImp();
+            problem.getLeft().forEach(i -> {
+                Agent agent = ((GUIBootMultiAlg.Agent) model.getElementAt(i));
+                agentList.addAgent(agent.name.toLowerCase(), "127.0.0.1");
+            });
+            logger.info("Agent list {}", agentList);
 
-                                AgentList agentList = new AgentListImp();
-                                IntStream.range(0, model.size())
-                                        .filter(agentInclude::get)
-                                        .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
-                                        .forEach(s -> agentList.addAgent(s, "127.0.0.1"));
+            problem.getLeft().forEach(i -> {
+                try {
+                    Agent agent = ((GUIBootMultiAlg.Agent) model.getElementAt(i));
+                    PlanningAgent ag = new PlanningAgent(agent.name.toLowerCase(), agent.domain, agent.problem,
+                            agentList, false, sameObjects, trace.isSelected(), h, finalSearchPerformance, n,
+                            isAnytime, 60000, selectedAlg, problem.getRight(), monitor, removeAgents, solutionStack,
+                            MAPboot.planningAgents);
+                    MAPboot.planningAgents.add(ag);
 
-                                logger.info("agentList {}", agentList);
-                                Collection<String> removeAgents = IntStream.range(0, model.size())
-                                        .filter(i -> !agentInclude.get(i))
-                                        .mapToObj(i -> ((GUIBootMultiAlg.Agent) model.getElementAt(i)).name.toLowerCase())
-                                        .collect(Collectors.toSet());
-
-                                for (int i = 0; i < model.size(); i++) {
-
-                                    if (agentInclude.get(i)) {
-
-                                        GUIBootMultiAlg.Agent a = (GUIBootMultiAlg.Agent) model.getElementAt(i);
-                                        PlanningAgent ag = null;
-                                        try {
-                                            ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
-                                                    agentList, false, sameObjects, trace.isSelected(), h, finalSearchPerformance, n,
-                                                    isAnytime, 60, selectedAlg, goalIndex, monitor, removeAgents, solutionMap,
-                                                    MAPboot.planningAgents);
-
-                                        } catch (Exception e) {
-                                            logger.error(e.getMessage(), e);
-                                            return;
-                                        }
-//                GUIPlanningAgent gui = new GUIPlanningAgent(ag);
-//                gui.setLocation(x, y);
-//                y += gui.getHeight();
-//                if (y + gui.getHeight() > screenSize.height) {
-//                    x += gui.getWidth();
-//                    y = 0;
-//                }
-
-                                        MAPboot.planningAgents.add(ag);
-                                    }
-                                }
-
-                                for (PlanningAgent ag : MAPboot.planningAgents) {
-                                    ag.start();
-                                }
-
-                                synchronized (monitor) {
-                                    try {
-                                        monitor.wait(100000);
-                                        Thread.sleep(500);  //sleep one second to finish commumication
-                                    } catch (InterruptedException e) {
-                                        logger.info("Got interrupt on monitor");
-                                    }
-                                }
-
-                                //shutdown agents
-                                for (PlanningAgent ag : MAPboot.planningAgents) {
-                                    ag.interrupt();
-                                    ag.shutdown();
-                                }
-
-                            });
-                });
-
-//        solutionMap.keySet()
-//
-        solutionMap.entrySet().stream().
-                forEach(p -> {
-                    if (solutionMap.get(p.getKey()).size() > 0) {
-                        solutionMap.put(p.getKey(), filterDuplicatePlans(p.getValue()));
-                    } else {
-                        solutionMap.remove(p.getKey());
-                    }
-                });
-
-        Integer[] keys = solutionMap.keySet().toArray(new Integer[0]);
-
-        System.out.println("Starting plan merging...");
-        logger.info("merging plans {}", solutionMap);
-
-
-        List<Set<Integer>> allPlanCombinations =
-                PlanningUtils.getPlanCombinations(keys, planningTask.getAllGoals().length, model.size());
-        logger.info("All plan combinations {}", allPlanCombinations);
-
-        allPlanCombinations.stream().forEach(
-                s -> {
-                    logger.info("Plan combination {}", s);
-                    List<Set<Plan>> plansToMerge = solutionMap.entrySet().stream().
-                            filter(e -> s.contains(e.getKey())).
-                            map(Map.Entry::getValue).collect(Collectors.toList());
-                    Set<List<Plan>> partialPlanCartesianProduct = Sets.cartesianProduct(plansToMerge);
-
-                    partialPlanCartesianProduct.stream().forEach(PlanningUtils::mergePlans);
+                } catch (Exception e) {
+                    logger.error(e.getMessage(), e);
+                    System.exit(1);
                 }
+            });
 
 
-        );
+
+
+            for (PlanningAgent ag : MAPboot.planningAgents) {
+                ag.start();
+            }
+
+            synchronized (monitor) {
+                try {
+                    monitor.wait(10000000);
+                    Thread.sleep(500);  //sleep one second to finish commumication
+                } catch (InterruptedException e) {
+                    logger.info("Got interrupt on monitor");
+                }
+            }
+
+            //shutdown agents
+            for (PlanningAgent ag : MAPboot.planningAgents) {
+                ag.interrupt();
+                ag.shutdown();
+            }
+            logger.info("Active threads number: {}", Thread.activeCount());
+
+
+            if (solutionStack.size() > solutionStackStackPrev) {
+                logger.info("Solution found!");
+                solvedProblemsStack.push(problem);
+            } else if (!unsolvedProblemsStack.empty()) {
+                logger.info("merge plan with next unsolved plan");
+
+                ImmutablePair<Set<Integer>, Set<Integer>> nextUnsolvedProblem = unsolvedProblemsStack.pop();
+
+                //merge the problems
+                nextUnsolvedProblem.getLeft().addAll(problem.getLeft());
+                nextUnsolvedProblem.getRight().addAll(problem.getRight());
+                unsolvedProblemsStack.push(nextUnsolvedProblem);
+
+            } else if (!solvedProblemsStack.empty()) {
+                logger.info("merge plan with solved plan");
+
+                ImmutablePair<Set<Integer>, Set<Integer>> nextUnsolvedProblem = solvedProblemsStack.pop();
+
+                //merge the problems
+                nextUnsolvedProblem.getLeft().addAll(problem.getLeft());
+                nextUnsolvedProblem.getRight().addAll(problem.getRight());
+                unsolvedProblemsStack.push(nextUnsolvedProblem);
+
+                //remove solution
+                solutionStack.pop();
+
+            } else {
+                logger.info("No solution found - EXIT");
+                System.exit(1);
+            }
+        }
+
+
+        if (!solutionStack.empty()) {
+            System.out.println("Starting plan merging...");
+            logger.info("Solution plan size {}", solutionStack.size());
+
+            PlanningUtils.mergePlans(solutionStack);
+        }
+
+
 
         System.out.println("Finishing plan merging...");
 

@@ -3,6 +3,7 @@ package org.agreement_technologies.agents;
 import com.google.common.collect.Sets;
 import org.agreement_technologies.common.map_planner.Plan;
 import org.agreement_technologies.common.map_planner.Step;
+import org.agreement_technologies.service.map_planner.IPlan;
 import org.agreement_technologies.service.map_planner.POPAction;
 import org.agreement_technologies.service.map_planner.POPPrecEff;
 import org.agreement_technologies.service.map_planner.POPStep;
@@ -85,7 +86,7 @@ public class PlanningUtils {
                     Arrays.fill(zeroArray, "0");
                     Arrays.fill(onesArray, "1");
                     String[] reduceResult = s.stream().map(i -> String.format("%0" + goalSize + "d",
-                            Integer.parseInt(Integer.toBinaryString(i))).split("")).
+                            Integer.parseInt(Long.toBinaryString(i))).split("")).
                             reduce(zeroArray,
                                     (a, b) -> {
                                         for (int i = 0; i < a.length; i++) {
@@ -102,25 +103,32 @@ public class PlanningUtils {
 
     }
 
-    public static void mergePlans(Collection<Plan> plans) {
+    public static void mergePlans(Collection<IPlan> plans) {
         logger.debug("merge plans {}", (Object) plans);
 
         HashSet<String> initialFinalStepNames = new HashSet<>(Arrays.asList("Initial", "Final"));
 
 
+
+
         Set<List<Step>> linearizedSteps = new HashSet<>();
-        for (Plan plan : plans) {
-            List<Step> stepsArray = new ArrayList<>(plan.getStepsArray());
+        for (IPlan plan : plans) {
+            List<Step> stepsArray = new ArrayList<>(plan.getTotalSteps());
+
+            logger.info("Steps inside merge {}",stepsArray);
+
             if (stepsArray.size() > 2) {
-                List<Step> steps = new ArrayList<>();
+
                 int[] actionIndexes = plan.linearizePlan(Plan.CoDMAP_CENTRALIZED, null);
 
-                stepsArray.remove(0);
-                stepsArray.remove(0);  //remove initial and final steps
+                logger.info("Linerized action inside merge: {}", actionIndexes);
 
-                Arrays.stream(Arrays.copyOfRange(actionIndexes, 2, actionIndexes.length)).forEach(
-                        i -> steps.add(stepsArray.get(i))
-                );
+
+                TreeMap<Integer, Integer> sortedLinearOrder = new TreeMap<>();
+                IntStream.range(2, actionIndexes.length).forEach(i -> sortedLinearOrder.put(actionIndexes[i], i));
+
+                List<Step> steps = sortedLinearOrder.values().stream().map(stepsArray::get).collect(Collectors.toList());
+
 
                 linearizedSteps.add(steps);
             }
@@ -152,6 +160,7 @@ public class PlanningUtils {
                 });
                 return true;
             } else {
+                logger.error("Error on step {}", step.getActionName());
                 return false;
             }
         }).collect(Collectors.toList());
@@ -190,12 +199,12 @@ public class PlanningUtils {
             final int[] stageIndex = {0};
             final long numberOfActions = agentToStepMap.values().stream().map(List::size).collect(summarizingInt(Integer::intValue)).getSum();
 
-            int MAX_STEP_SIZE = 20;
+            int MAX_STEP_SIZE = 500;
             while (agentToStepMap.values().stream().map(List::size).collect(summarizingInt(Integer::intValue)).getMax() > 0 &&
                     stageIndex[0] < MAX_STEP_SIZE) {
                 System.out.println("Stage: " + stageIndex[0]);
 
-                agentToStepMap.entrySet().stream().forEach(
+                agentToStepMap.entrySet().forEach(
                         entry -> {
                             if (entry.getValue().size() > 0 &&
                                     Arrays.stream(entry.getValue().get(0).getPreconditions()).allMatch(
@@ -239,8 +248,13 @@ public class PlanningUtils {
         if (effect.getFunction() != null) {
             conditionMap.put(effect.getFunction().toKey(), effect.getValue());
         }
-        conditionMap.put(getAgentKey(agent, effect),
-                Integer.toString(effect.getCondition().getValueCode()));
+        else {
+            System.out.println("Function NULL");
+            if (agent != null) {
+                conditionMap.put(getAgentKey(agent, effect),
+                        Integer.toString(effect.getCondition().getValueCode()));
+            }
+        }
     }
 
     private static String getAgentKey(String agent, POPPrecEff precEff) {
@@ -249,7 +263,7 @@ public class PlanningUtils {
     }
 
 
-    private static Step mergeInitialFinalSteps(int stepIndex, String actionName, Collection<Plan> plans) {
+    private static Step mergeInitialFinalSteps(int stepIndex, String actionName, Collection<IPlan> plans) {
         logger.debug("merging action {}", actionName);
         return plans.stream().
                 //filter initial or final steps

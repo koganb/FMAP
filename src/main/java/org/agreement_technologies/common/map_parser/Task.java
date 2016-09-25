@@ -1,6 +1,7 @@
 package org.agreement_technologies.common.map_parser;
 
 import java.util.Collection;
+import java.util.Set;
 
 /**
  * Ungrounded planning task
@@ -101,7 +102,7 @@ public interface Task {
      */
     Operator[] getBeliefs();
 
-    void setGoalIndex(int goalIndex);
+    void setGoalIndexes(Set<Integer> goalIndexes);
 
     Fact[] getAllGoals();
 

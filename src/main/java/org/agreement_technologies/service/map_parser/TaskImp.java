@@ -7,10 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -46,7 +43,7 @@ public class TaskImp implements Task {
     MetricImp metric;                                   // Metric
     double selfInterest;                // Self-interest level
     double metricThreshold;                // Metric threshold
-    private int goalIndex;
+    private Set<Integer> goalIndexes;
 
     /**
      * Crates an empty planning task
@@ -498,17 +495,9 @@ public class TaskImp implements Task {
         return res;
     }
 
-    /**
-     * Returns the list of (global or private) goals
-     *
-     * @param global True to retrieve the global goals, false to retrieve the
-     *               private goals
-     * @return Array of goals (facts)
-     */
-
     @Override
-    public void setGoalIndex(int goalIndex) {
-        this.goalIndex = goalIndex;
+    public void setGoalIndexes(Set<Integer> goalIndexes) {
+        this.goalIndexes = goalIndexes;
     }
 
 
@@ -525,19 +514,12 @@ public class TaskImp implements Task {
     @Override
     public Fact[] getGoals() {
         Fact[] allGoals = getAllGoals();
-
-        List<Boolean> goalContain =
-                Arrays.stream(String.format("%0" + allGoals.length + "d",
-                        Integer.parseInt(Integer.toBinaryString(goalIndex))).split("")).
-                        map(j -> j.equals("1")).
-                        collect(Collectors.toList());
-
         List<Fact> factList = new ArrayList<>();
         IntStream.range(0, allGoals.length).
-                filter(goalContain::get).
+                filter(i -> goalIndexes.contains(i)).
                 forEach(i -> factList.add(allGoals[i]));
 
-        logger.info("goalIndex {}, goals : {}", this.goalIndex, factList);
+        logger.info("goalIndexes {}, goals : {}", this.goalIndexes, factList);
         return factList.toArray(new Fact[factList.size()]);
     }
 

@@ -7,12 +7,10 @@ import org.agreement_technologies.common.map_grounding.GroundedTask;
 import org.agreement_technologies.common.map_landmarks.Landmarks;
 import org.agreement_technologies.common.map_parser.AgentList;
 import org.agreement_technologies.common.map_planner.Plan;
+import org.agreement_technologies.service.map_planner.IPlan;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * @author Oscar Sapena Planning agent
@@ -46,8 +44,8 @@ public class PlanningAgent extends Thread implements AgentListener {
      */
     public PlanningAgent(String name, String domainFile, String problemFile, AgentList agList,
                          boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
-                         int negotiation, boolean isAnytime, int timeout, AlgorithmType algorithmType, int goalIndex,
-                         Object monitor, Collection<String> removeAgents, Map<Integer, Set<Plan>> solutionMap,
+                         int negotiation, boolean isAnytime, int timeout, AlgorithmType algorithmType, Set<Integer> goalIndexes,
+                         Object monitor, Collection<String> removeAgents, Stack<IPlan> solutionStack,
                          ArrayList<PlanningAgent> planningAgents) throws IOException {
         this.name = name.toLowerCase();
         this.monitor = monitor;
@@ -58,7 +56,7 @@ public class PlanningAgent extends Thread implements AgentListener {
         }
         alg = new PlanningAlgorithm(name, domainFile, problemFile, agList, waitSynch,
                 sameObjects, traceOn, h, searchPerformance, negotiation, isAnytime,
-                algorithmType, goalIndex, removeAgents, solutionMap, planningAgents);
+                algorithmType, goalIndexes, removeAgents, solutionStack, planningAgents);
     }
 
     /**

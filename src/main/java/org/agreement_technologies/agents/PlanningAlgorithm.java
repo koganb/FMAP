@@ -20,16 +20,21 @@ import org.agreement_technologies.service.map_grounding.GroundingImp;
 import org.agreement_technologies.service.map_heuristic.HeuristicFactoryImp;
 import org.agreement_technologies.service.map_parser.MAPDDLParserImp;
 import org.agreement_technologies.service.map_parser.ParserImp;
+import org.agreement_technologies.service.map_planner.IPlan;
+import org.agreement_technologies.service.map_planner.POPFunction;
 import org.agreement_technologies.service.map_planner.POPPrecEff;
 import org.agreement_technologies.service.map_planner.PlannerFactoryImp;
 import org.agreement_technologies.service.map_viewer.PlanViewerImp;
 import org.agreement_technologies.service.tools.Redirect;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 public class PlanningAlgorithm {
@@ -42,26 +47,26 @@ public class PlanningAlgorithm {
     public static final int STATUS_ERROR = 9;
     public static final int STATUS_ARGUMENTATION = 10;
     protected static final String[] STATUS_DESC = {"starting", "parsing",
-        "grounding", "planning", "landmarks", "undefined", "undefined",
-        "undefined", "idle", "error", "arguing"};
+            "grounding", "planning", "landmarks", "undefined", "undefined",
+            "undefined", "idle", "error", "arguing"};
     private static final Logger logger = LoggerFactory.getLogger(PlanningAlgorithm.class);
-    protected String name;					// Agent name
-    protected String domainFile;				// Domain filename
-    protected String problemFile;				// Problem filename
+    protected String name;                    // Agent name
+    protected String domainFile;                // Domain filename
+    protected String problemFile;                // Problem filename
 
-    protected int status;					// Agent status (see constants above)
+    protected int status;                    // Agent status (see constants above)
     protected int sameObjects;
     protected boolean traceOn;
     protected int heuristicType;
 
     protected AgentCommunication comm;                          // Agent communication utility
-    protected Task planningTask;				// Parsed planning task
+    protected Task planningTask;                // Parsed planning task
     protected GroundedTask groundedTask;                        // Grounded planning task
-    protected Landmarks landmarks;				// Landmarks information
+    protected Landmarks landmarks;                // Landmarks information
     protected PlannerFactory plannerFactory;
     protected Planner planner;
     protected PlanningAgentListener paListener;
-    protected Plan solutionPlan;
+    protected IPlan solutionPlan;
     protected long planningTime;
     protected int iterations;
     protected int searchPerformance;
@@ -71,26 +76,26 @@ public class PlanningAlgorithm {
     protected boolean waitSynch;
     protected boolean negationByFailure;
     protected boolean isMAPDDL;
-    private int goalIndex;
+    private Set<Integer> goalIndexes;
     private Collection<String> removeAgents;
-    private Map<Integer, Set<Plan>> solutionMap;
-    private ArrayList<PlanningAgent> planningAgents;
+    private Stack<IPlan> solutionStack;
+    private List<PlanningAgent> planningAgents;
 
     /**
      * Constructor of a planning agent
      */
     public PlanningAlgorithm(String name, String domainFile, String problemFile, AgentList agList,
                              boolean waitSynch, int sameObjects, boolean traceOn, int h, int searchPerformance,
-                             int neg, boolean anytime, AlgorithmType algorithmType, int goalIndex,
-                             Collection<String> removeAgents, Map<Integer, Set<Plan>> solutionMap,
-                             ArrayList<PlanningAgent> planningAgents) throws IOException {
+                             int neg, boolean anytime, AlgorithmType algorithmType, Set<Integer> goalIndexes,
+                             Collection<String> removeAgents, Stack<IPlan> solutionStack,
+                             List<PlanningAgent> planningAgents) throws IOException {
         this.name = name.toLowerCase();
         this.comm = new AgentCommunicationImp(this.name, agList);
         this.waitSynch = waitSynch;
         this.agList = agList;
-        this.goalIndex = goalIndex;
+        this.goalIndexes = goalIndexes;
         this.removeAgents = removeAgents;
-        this.solutionMap = solutionMap;
+        this.solutionStack = solutionStack;
         this.planningAgents = planningAgents;
         this.plannerFactory = null;
         this.domainFile = domainFile;
@@ -122,8 +127,8 @@ public class PlanningAlgorithm {
     /**
      * Shows a trace message
      *
-     * @param indentLevel	Indentation level
-     * @param msg	Message
+     * @param indentLevel Indentation level
+     * @param msg         Message
      */
     protected void trace(int indentLevel, String msg) {
         if (paListener != null) {
@@ -158,7 +163,7 @@ public class PlanningAlgorithm {
     /**
      * Execution code for the planning agent
      */
-    protected void execute(int timeout) {	// Time out in seconds
+    protected void execute(int timeout) {    // Time out in seconds
         if (waitSynch)
             executeWithAsynchronousStart(timeout);
         else
@@ -175,7 +180,7 @@ public class PlanningAlgorithm {
     /**
      * **********************************************************
      */
-    
+
     /**
      * Task parsing from PDDL files
      */
@@ -188,7 +193,7 @@ public class PlanningAlgorithm {
         PDDLParser parser = isMAPDDL ? new MAPDDLParserImp() : new ParserImp();
         try {
             planningTask = parser.parseDomain(domainFile);
-            planningTask.setGoalIndex(goalIndex);
+            planningTask.setGoalIndexes(goalIndexes);
 
         } catch (ParseException e) {
             notifyError(e.getMessage() + ", at line " + e.getErrorOffset()
@@ -213,7 +218,7 @@ public class PlanningAlgorithm {
         trace(0, "Parsing completed in " + endTime + "ms.");
         return endTime;
     }
-    
+
     /**
      * **********************************************************
      */
@@ -239,7 +244,7 @@ public class PlanningAlgorithm {
         long endTime = System.currentTimeMillis() - startTime;
         trace(0, "Grounding completed in " + endTime + "ms. ("
                 + comm.getNumMessages() + " messages, " + groundedTask.getActions().size()
-                + " actions)");        
+                + " actions)");
         return endTime;
     }
 
@@ -270,7 +275,7 @@ public class PlanningAlgorithm {
         changeStatus(STATUS_PLANNING);
         planner = plannerFactory.createPlanner(groundedTask, heuristic, comm, al, searchPerformance, negotiation, isAnytime);
         long startTime = System.currentTimeMillis();
-        solutionPlan = planner.computePlan(startTime, timeout);	// Timeout in seconds
+        solutionPlan = planner.computePlan(startTime, timeout);    // Timeout in seconds
 
         long endTime = System.currentTimeMillis() - startTime;
         trace(0, String.format("Planning completed in %.3f sec.", endTime / 1000.0));
@@ -281,8 +286,8 @@ public class PlanningAlgorithm {
 
             Set<String> agentNames = this.planningAgents.stream().map(t -> t.name).collect(Collectors.toSet());
             Set<POPPrecEff> effectsSet = new HashSet<>(effects);
-            planningAgents.stream().forEach(p -> {
-                p.getAlg().getPlannerFactory().getInitialState().stream().forEach(
+            new ArrayList<>(planningAgents).forEach(p -> {
+                p.getAlg().getPlannerFactory().getInitialState().forEach(
                         t -> {
                             Set<String> agentParams = t.getFunction().getParams().stream().filter(agentNames::contains).collect(Collectors.toSet());
                             if (agentParams.size() > 0) {
@@ -291,13 +296,33 @@ public class PlanningAlgorithm {
                             effectsSet.add(t);
                         }
                 );
-
             });
             effects.clear();
             effects.addAll(effectsSet);
 
+
+            solutionPlan.getStepsArray().forEach(
+                    s -> Arrays.stream(ArrayUtils.addAll(s.getPreconditions(),s.getEffects())).forEach(
+                            k -> {
+                                if (k.getFunction() == null) {
+                                    new ArrayList<>(planningAgents).stream().filter(t -> t.name.equals(s.getAgent())).forEach(
+                                            y -> {
+                                                POPFunction function = y.getAlg().getPlannerFactory().
+                                                        getPOPPrecEffByKey(k.toKey()).getFunction();
+
+                                                logger.info("Setting function {} for key {}", function, k.toKey());
+                                                k.setFunction(function);
+                                            });
+                                }
+                            })
+            );
+
             logger.info("Solution plan {}", solutionPlan);
-            solutionMap.get(goalIndex).add(solutionPlan);
+
+            if (this.comm.getAgentIndex(groundedTask.getAgentName()) == 0) {
+                solutionStack.push(solutionPlan);
+            }
+
 
             trace(0, "Plan length: " + (solutionPlan.countSteps()));
             if (!traceOn && paListener != null) {
@@ -337,17 +362,13 @@ public class PlanningAlgorithm {
     private void executeWithSynchronousStart(int timeout) {
         try {
             long totalTime;
-            totalTime = parseTask();						// Task parsing from PDDL files
+            totalTime = parseTask();                        // Task parsing from PDDL files
             totalTime += groundTask();
 
             // Task grounding from the parsed task
-            planningTime = planningStage(timeout);				// Planning stage
+            planningTime = planningStage(timeout);                // Planning stage
             totalTime += planningTime;
 
-
-            if (this.comm.getAgentIndex(groundedTask.getAgentName()) == 1 && solutionPlan != null) {
-                solutionMap.get(goalIndex).add(solutionPlan);
-            }
 
             if (status != STATUS_ERROR) {
                 changeStatus(STATUS_IDLE);
@@ -395,7 +416,8 @@ public class PlanningAlgorithm {
                         //System.out.println("[" + comm.getThisAgentName() + "] -> Agent " + agentNames.get(i) + " registered");
                         registered[i] = true;
                         activeAgents++;
-                    };
+                    }
+                    ;
                 }
             }
         } while (activeAgents < comm.numAgents());

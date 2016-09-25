@@ -207,10 +207,10 @@ public abstract class Planner implements ExtendedPlanner {
     }
 
     @Override
-    public Plan computePlan(long start, long timeoutSeconds) {
+    public IPlan computePlan(long start, long timeoutSeconds) {
         long t1;
         planningStep = 1;
-        Plan solution = null;
+        IPlan solution = null;
         ArrayList<IPlan> proposals;
         int solutions = 0;
         MetricChecker metricChecker = new MetricChecker(comm);
@@ -290,7 +290,7 @@ public abstract class Planner implements ExtendedPlanner {
         //if (comm.batonAgent())
         //	memoization.histogram();
 
-        if (this.comm.getAgentIndex(myAgent) == 0) {
+        if (solution != null && this.comm.getAgentIndex(myAgent) == 0) {
             System.out.println("\nCoDMAP Distributed format");
             System.out.println("-------------------------");
             for (int i = 0; i < comm.getAgentList().size(); i++) {

@@ -591,11 +591,15 @@ public class POPIncrementalPlan implements IPlan {
         //boolean found;
         int[] actions;
         ArrayList<Step> steps = getTotalSteps();
-        
-        //Calculate plan linearization
+
+		//Calculate plan linearization
         switch(output) {
             case Plan.CoDMAP_CENTRALIZED:
                 actions = linearizePlan(Plan.CoDMAP_CENTRALIZED, agents);
+
+                logger.info("Linerized action before merge: {}", actions);
+                logger.info("Steps before merge {}",steps);
+
                 break;
             case Plan.CoDMAP_DISTRIBUTED:
                 actions = linearizePlan(Plan.CoDMAP_DISTRIBUTED, agents);
@@ -604,7 +608,8 @@ public class POPIncrementalPlan implements IPlan {
                 actions = linearizePlan(Plan.REGULAR, agents);
                 break;
         }
-        
+
+
         for(i = 0; i < actions.length; i++) {
             if(actions[i] > makespan)
                 makespan = actions[i];

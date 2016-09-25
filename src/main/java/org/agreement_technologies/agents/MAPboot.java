@@ -11,6 +11,11 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Stack;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * Multi-Agent Planning Process launcher Connects with Magentix platform and
@@ -82,7 +87,7 @@ public class MAPboot {
                     PlanningAgent ag = new PlanningAgent(args[n].toLowerCase(), args[n + 1], args[n + 2],
                             agList, false, GroundedTask.SAME_OBJECTS_REP_PARAMS, false,
                             HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
+                            false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, emptySet(), monitor, emptyList(), new Stack<>(), MAPboot.planningAgents);
                     planningAgents.add(ag);
                     n += 3;
                 }
@@ -116,7 +121,8 @@ public class MAPboot {
             PlanningAgent ag = new PlanningAgent(agentName.toLowerCase(), domainFile,
                     problemFile, agList, true, GroundedTask.SAME_OBJECTS_REP_PARAMS,
                     false, HeuristicFactory.LAND_DTG_NORM, 1, NegotiationFactory.COOPERATIVE,
-                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
+                    false, -1, GUIBootMultiAlg.AlgorithmType.FMAP, emptySet(), monitor,
+                    emptyList(), new Stack<>(), MAPboot.planningAgents);
             MAPboot.planningAgents.add(ag);
             ag.start();
         } catch (ParseException ex) {

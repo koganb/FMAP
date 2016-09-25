@@ -54,6 +54,10 @@ public class PlannerFactoryImp implements PlannerFactory {
     private Hashtable<Integer, String> hashGlobalIndexesCodeValue;
     private int numGlobalVariables;
 
+    public POPPrecEff getPOPPrecEffByKey(String key) {
+        return hashPrecEffs.get(key);
+    }
+
     public PlannerFactoryImp(GroundedTask task, AgentCommunication comm) {
         Hashtable<String, InternalCondition> hashPrecEffs = new Hashtable<String, InternalCondition>();
         ArrayList<InternalCondition> goals = new ArrayList<InternalCondition>();

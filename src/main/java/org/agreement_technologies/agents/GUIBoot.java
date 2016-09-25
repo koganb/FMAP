@@ -12,7 +12,9 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.io.*;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Scanner;
+import java.util.Stack;
 
 import static org.agreement_technologies.agents.GUIBootMultiAlg.AlgorithmType.FMAP;
 
@@ -472,7 +474,8 @@ public class GUIBoot extends JFrame {
                 GUIBoot.Agent a = (GUIBoot.Agent) model.getElementAt(i);
                 PlanningAgent ag = new PlanningAgent(a.name.toLowerCase(), a.domain, a.problem,
                         agList, false, sameObjects, trace.isSelected(), h, searchPerformance, n,
-                        isAnytime, timeout, FMAP, 0, monitor, Collections.emptyList(), Collections.emptyMap(), MAPboot.planningAgents);
+                        isAnytime, timeout, FMAP, Collections.emptySet(), monitor, Collections.emptyList(),
+                        new Stack<>(), MAPboot.planningAgents);
                 GUIPlanningAgent gui = new GUIPlanningAgent(ag);
                 gui.setLocation(x, y);
                 y += gui.getHeight();

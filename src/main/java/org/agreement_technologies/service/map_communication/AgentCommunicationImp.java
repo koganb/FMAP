@@ -1,15 +1,20 @@
 package org.agreement_technologies.service.map_communication;
 
+import org.agreement_technologies.agents.PlanningUtils;
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_communication.Message;
 import org.agreement_technologies.common.map_communication.MessageFilter;
 import org.agreement_technologies.common.map_parser.AgentList;
 import org.agreement_technologies.common.map_parser.Task;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,9 +26,12 @@ import java.util.Vector;
  * @author Oscar Sapena
  * @since April 2011
  */
-public class AgentCommunicationImp implements AgentCommunication {    
+public class AgentCommunicationImp implements AgentCommunication {
+
+    private static Logger logger = LoggerFactory.getLogger(AgentCommunicationImp.class);
+
     private static final int WAIT_TIME_MESSAGE = 1;
-    private static final int WAIT_TIMEOUT_MESSAGE = 30000;	// 30 seg.
+    private static final int WAIT_TIMEOUT_MESSAGE = 120000;	// 120 seg.
 
     private final String agentName;			// Name of this agent (without suffix)
     private final ArrayList<AgentIP> otherAgents;        // Other agents in the task
@@ -302,7 +310,13 @@ public class AgentCommunicationImp implements AgentCommunication {
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             out.writeObject(new MessageImp(obj, agentName));
             out.flush();
-        } catch (IOException ex) {
+        }
+        catch (SocketException ex) {
+            clientSockets[socketIndex]= null;
+            logger.info("Reloading socket for {}",ipAddress.get(toAgent) );
+            sendMessage(toAgent, obj, waitACK);
+        }
+        catch (IOException ex) {
             throw new CommunicationException(ex.toString());
         }
         if (waitACK) {
