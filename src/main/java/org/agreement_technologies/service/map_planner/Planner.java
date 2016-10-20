@@ -1,5 +1,6 @@
 package org.agreement_technologies.service.map_planner;
 
+import com.google.common.collect.EvictingQueue;
 import org.agreement_technologies.common.map_communication.AgentCommunication;
 import org.agreement_technologies.common.map_communication.Message;
 import org.agreement_technologies.common.map_communication.MessageFilter;
@@ -15,6 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.agreement_technologies.Log4jMarkers.CAUSAL_LINK_MARKER;
 
@@ -30,6 +33,7 @@ public abstract class Planner implements ExtendedPlanner {
     static final int NO_TIMEOUT = -1;
     static final int IDA_SEARCH = 1;
     static final int A_SEARCH = 2;
+    public static final int MAX_HDTG_METRICS_SIZE = 200;
     private static Logger logger = LoggerFactory.getLogger(Planner.class);
     protected POPIncrementalPlan basePlan;
     protected PlannerFactoryImp configuration;
@@ -234,6 +238,8 @@ public abstract class Planner implements ExtendedPlanner {
             agentListener.newPlan(searchTree.checkNextPlan(), configuration);
         boolean adjustHLandStage = heuristic.requiresHLandStage();
 
+
+        EvictingQueue<Integer> hdtgMetricts = EvictingQueue.create(MAX_HDTG_METRICS_SIZE);
         while ((solution == null || isAnytime)
                 && (timeoutSeconds == -1 || System.currentTimeMillis() < endTime)) {
             if (agentListener != null)
@@ -254,9 +260,19 @@ public abstract class Planner implements ExtendedPlanner {
                 this.agentListener.trace(1,
                         "Plan " + basePlan.getName() + " (h=" + basePlan.getH()
                                 + ", hL=" + basePlan.getHLan() + ") selected");
-            else if (comm.batonAgent())
-                System.out.println("Hdtg = " + basePlan.getH() + ", Hlan = " + basePlan.getHLan());
+            else if (comm.batonAgent()) {
+                logger.info("Hdtg = {}, Hlan = {}", basePlan.getH(), basePlan.getHLan());
 
+                hdtgMetricts.add(basePlan.getHLan());
+
+                if (hdtgMetricts.size() == MAX_HDTG_METRICS_SIZE &&
+                        hdtgMetricts.stream().collect(
+                                Collectors.groupingBy(
+                                        Function.identity(), Collectors.counting()
+                                )).size() < 4) {
+                    throw new RuntimeException("Exiting planning due to advance absence ....");
+                }
+            }
             this.setAntecessors(basePlan);
             initialInternalPlan.setNumSteps(antecessors.length);
             basePlan.calculateCausalLinks(antecessors);
@@ -586,8 +602,8 @@ public abstract class Planner implements ExtendedPlanner {
                         agentListener.trace(2, "Received plan " + planName + " from " + ag + "[" + p.getH() + "]");
                         agentListener.newPlan(p, configuration);
                     }
-                    //System.out.println("PLAN " + proposal.plan.getName());
-                    //System.out.println("* LANDMARKS: " + h.newLandmarksList(proposal.plan.getName()));
+                    //System.out.println("PLAN " + proposal.plan.getFunctionName());
+                    //System.out.println("* LANDMARKS: " + h.newLandmarksList(proposal.plan.getFunctionName()));
                 }
                 ArrayList<String> planNames = h.proposalsWithAdjustments();
                 for (String planName : planNames)
@@ -626,7 +642,7 @@ public abstract class Planner implements ExtendedPlanner {
                 ArrayList<Integer> newLandmarks = heuristic.checkNewLandmarks(plan,
                         prop.achievedLandmarks);
                 hAdjustment.add(plan.getName(), newLandmarks);
-                //System.out.println(plan.getName());
+                //System.out.println(plan.getFunctionName());
                 //}
             }
         }
@@ -935,7 +951,6 @@ public abstract class Planner implements ExtendedPlanner {
     /**
      * Selects and solves an open condition of the plan
      *
-     * @param p      Base plan
      * @param father Incremental definition of the base plan
      */
     public void solveOpenCondition(POPInternalPlan father, POPStep newStep) {
